@@ -1,0 +1,1315 @@
+﻿{
+    "name":  "Solidario-Cobros-CierreLlamadas",
+    "nodes":  [
+                  {
+                      "parameters":  {
+                                         "httpMethod":  "POST",
+                                         "path":  "solidario-cobros-cierre-vapi",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.webhook",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -42180,
+                                       7680
+                                   ],
+                      "id":  "cb9110ca-280e-431b-bfe7-6cc6b975aef1",
+                      "name":  "Webhook Cierre VAPI",
+                      "webhookId":  "2ccdcffe-1d21-4f7b-8775-2803b8162cdd"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "return items.map(item =\u003e {\n  const root = item.json || {};\n  const envelope = root.body \u0026\u0026 typeof root.body === \u0027object\u0027 ? root.body : root;\n  const headers = root.headers || envelope.headers || {};\n\n  const findDeep = (obj, predicate) =\u003e {\n    const seen = new Set();\n    const stack = [obj];\n    while (stack.length) {\n      const cur = stack.pop();\n      if (!cur || typeof cur !== \u0027object\u0027) continue;\n      if (seen.has(cur)) continue;\n      seen.add(cur);\n      if (predicate(cur)) return cur;\n      for (const v of Object.values(cur)) {\n        if (v \u0026\u0026 typeof v === \u0027object\u0027) stack.push(v);\n      }\n    }\n    return null;\n  };\n\n  const msg = envelope.message || envelope.data || root.message || root.data || {};\n  const eventType =\n    msg.type || envelope.type || root.type || envelope.event || root.event || envelope.messageType || root.messageType || null;\n\n  const callObj =\n    msg.call || envelope.call || root.call || findDeep(msg, (x) =\u003e x.id \u0026\u0026 (x.startedAt || x.endedAt || x.customer || x.metadata));\n\n  const metadata =\n    (callObj \u0026\u0026 callObj.metadata) || msg.metadata || envelope.metadata || root.metadata ||\n    findDeep(msg, (x) =\u003e x.num_operacion || x.cedula || x.agente_tipo) || {};\n\n  const customer =\n    (callObj \u0026\u0026 callObj.customer) || msg.customer || envelope.customer || root.customer ||\n    findDeep(msg, (x) =\u003e x.number \u0026\u0026 (x.name || x.phoneNumber || x.phone)) || {};\n\n  const startedAt =\n    (callObj \u0026\u0026 callObj.startedAt) || msg.startedAt || envelope.startedAt || root.startedAt || null;\n  const endedAt =\n    (callObj \u0026\u0026 callObj.endedAt) || msg.endedAt || envelope.endedAt || root.endedAt || null;\n\n  const headerCallId = headers[\u0027x-call-id\u0027] || headers[\u0027X-Call-Id\u0027] || headers[\u0027x-callid\u0027] || null;\n  const callId =\n    (callObj \u0026\u0026 callObj.id) || msg.id || envelope.id || root.id || envelope.callId || root.callId || headerCallId || null;\n\n  item.json = {\n    ...root,\n    ...envelope,\n    ...msg,\n    ...(callObj || {}),\n    event_type: eventType,\n    is_final_event: String(eventType || \u0027\u0027).toLowerCase() === \u0027end-of-call-report\u0027 || !!endedAt,\n    id_llamada: callId,\n    id: callId,\n    callId,\n    num_operacion: metadata.num_operacion || envelope.num_operacion || root.num_operacion || null,\n    cedula: metadata.cedula || envelope.cedula || root.cedula || null,\n    agente_tipo: metadata.agente_tipo || envelope.agente_tipo || root.agente_tipo || null,\n    telefono_preferido: customer.number || envelope.telefono || root.telefono || null,\n    startedAt,\n    endedAt,\n    phones: \u0027telefono_preferido\u0027,\n  };\n\n  return item;\n});"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -41940,
+                                       7680
+                                   ],
+                      "id":  "d28e14d2-e74d-41ab-9ac4-64378933df81",
+                      "name":  "NORMALIZA EVENTO CIERRE VAPI"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "return items.map(item =\u003e {\n  const cfg = {\n    runtime: { testMode: false, timeOffsetMinutes: 0 },\n    db: { schema: \u0027public\u0027, table: \u0027solidario_registros\u0027, pk: \u0027num_operacion\u0027 },\n    states: { pending: \u0027PENDIENTE\u0027, inProgress: \u0027EN_PROCESO\u0027, retry: \u0027REINTENTAR\u0027, done: \u0027FINALIZADO\u0027 },\n    agents: { COBROS: \u0027dbb81b6f-8e6b-4b18-9db6-6a4fcf9dca37\u0027, PREVENTIVA: \u0027aa95f1ca-a21a-4445-b7ff-bc414774d805\u0027 },\n    vapi: { baseUrl: \u0027https://api.vapi.ai\u0027, apiKey: \u0027484afd71-2703-4852-8580-9629620dde82\u0027, phoneNumberId: \u002709d4e6e1-6b8d-45a5-9c7b-10bd06999040\u0027, sip: \u00270\u0027, campaignId: \u0027SOLIDARIO_COBROS\u0027 },\n    policyPreventiva: {\n      TZ: \u0027America/Guayaquil\u0027, CC: \u0027+593\u0027, maxDailyTries: 3, maxLifetimeTries: 14, offHoursWait: 30, waitAfterRetryMin: 30,\n      windows: [\n        { id: \u0027LUN_VIE_0800_1200\u0027, days: \u00271,2,3,4,5\u0027, start: \u002708:00\u0027, end: \u002712:00\u0027, max: 3, wait: 30, phones: \u0027telefono_preferido,telefono1,telefono2,telefono3,telefono4,telefono5,telefono6,telefono,tel1,tel2,tel3,tel4,tel5,tel6\u0027 },\n        { id: \u0027LUN_VIE_1201_1600\u0027, days: \u00271,2,3,4,5\u0027, start: \u002712:01\u0027, end: \u002716:00\u0027, max: 3, wait: 30, phones: \u0027telefono_preferido,telefono1,telefono2,telefono3,telefono4,telefono5,telefono6,telefono,tel1,tel2,tel3,tel4,tel5,tel6\u0027 },\n        { id: \u0027LUN_VIE_1601_2000\u0027, days: \u00271,2,3,4,5\u0027, start: \u002716:01\u0027, end: \u002720:00\u0027, max: 3, wait: 30, phones: \u0027telefono_preferido,telefono1,telefono2,telefono3,telefono4,telefono5,telefono6,telefono,tel1,tel2,tel3,tel4,tel5,tel6\u0027 },\n        { id: \u0027SAB_0800_1200\u0027, days: \u00276\u0027, start: \u002708:00\u0027, end: \u002712:00\u0027, max: 3, wait: 30, phones: \u0027telefono_preferido,telefono1,telefono2,telefono3,telefono4,telefono5,telefono6,telefono,tel1,tel2,tel3,tel4,tel5,tel6\u0027 }\n      ]\n    },\n    policyCobros: {\n      TZ: \u0027America/Guayaquil\u0027, CC: \u0027+593\u0027, maxLifetimeTries: 28, phaseThreshold: 14, recallBetweenPhases: 240,\n      phase1: {\n        maxTries: 14,\n        windows: [\n          { id: \u0027P1_LV_0800_2000\u0027, days: \u00271,2,3,4,5\u0027, start: \u002708:00\u0027, end: \u002720:00\u0027, phones: \u0027telefono_preferido,tel5,tel6,tel3,tel4,tel1,tel2\u0027 },\n          { id: \u0027P1_SAB_0800_1200\u0027, days: \u00276\u0027, start: \u002708:00\u0027, end: \u002712:00\u0027, phones: \u0027telefono_preferido,tel5,tel6,tel3,tel4,tel1,tel2\u0027 }\n        ]\n      },\n      phase2: {\n        maxTries: 14,\n        windows: [\n          { id: \u0027P2_LV_0800_0859\u0027, days: \u00271,2,3,4,5\u0027, start: \u002708:00\u0027, end: \u002708:59\u0027, phones: \u0027telefono_preferido,tel5,tel6,tel3,tel4,tel1,tel2\u0027 },\n          { id: \u0027P2_LV_0900_1759\u0027, days: \u00271,2,3,4,5\u0027, start: \u002709:00\u0027, end: \u002717:59\u0027, phones: \u0027telefono_preferido,tel5,tel6,tel3,tel4\u0027 },\n          { id: \u0027P2_LV_1800_2000\u0027, days: \u00271,2,3,4,5\u0027, start: \u002718:00\u0027, end: \u002720:00\u0027, phones: \u0027telefono_preferido,tel5,tel6,tel3,tel4,tel1,tel2\u0027 },\n          { id: \u0027P2_SAB_0800_1200\u0027, days: \u00276\u0027, start: \u002708:00\u0027, end: \u002712:00\u0027, phones: \u0027telefono_preferido,tel5,tel6,tel3,tel4,tel1,tel2\u0027 },\n          { id: \u0027P2_SAB_1201_2200\u0027, days: \u00276\u0027, start: \u002712:01\u0027, end: \u002722:00\u0027, phones: \u0027telefono_preferido,tel5,tel6,tel3,tel4,tel1,tel2\u0027 }\n        ]\n      },\n      phoneRules: {\n        \u0027customer-busy\u0027:           { recall: 5, maxRetries: 4, advancePhone: false, nom: \u0027CONTACTO FALLIDO NO JUSTIFICADO\u0027, cod: \u0027OCU08\u0027, mot: \u0027OCUPADO\u0027 },\n        \u0027busy\u0027:                    { recall: 5, maxRetries: 4, advancePhone: false, nom: \u0027CONTACTO FALLIDO NO JUSTIFICADO\u0027, cod: \u0027OCU08\u0027, mot: \u0027OCUPADO\u0027 },\n        \u0027no-answer\u0027:               { recall: 5, maxRetries: 4, advancePhone: false, nom: \u0027NO CONTACTO NO JUSTIFICADO\u0027, cod: \u0027NOCON05\u0027, mot: \u0027NO CONTESTAN\u0027 },\n        \u0027call-not-answered\u0027:       { recall: 5, maxRetries: 4, advancePhone: false, nom: \u0027NO CONTACTO NO JUSTIFICADO\u0027, cod: \u0027NOCON05\u0027, mot: \u0027NO CONTESTAN\u0027 },\n        \u0027customer-did-not-answer\u0027: { recall: 5, maxRetries: 4, advancePhone: false, nom: \u0027NO CONTACTO NO JUSTIFICADO\u0027, cod: \u0027NOCON05\u0027, mot: \u0027NO CONTESTAN\u0027 },\n        \u0027silence-timed-out\u0027:       { recall: 5, maxRetries: 4, advancePhone: false, nom: \u0027NO CONTACTO NO JUSTIFICADO\u0027, cod: \u0027NOCON05\u0027, mot: \u0027NO CONTESTAN\u0027 },\n        \u0027customer-speech-timeout\u0027: { recall: 5, maxRetries: 4, advancePhone: false, nom: \u0027NO CONTACTO NO JUSTIFICADO\u0027, cod: \u0027NOCON05\u0027, mot: \u0027NO CONTESTAN\u0027 },\n        \u0027voicemail\u0027:               { recall: 5, maxRetries: 1, advancePhone: true, nom: \u0027NO CONTACTO NO JUSTIFICADO\u0027, cod: \u0027CONTESAUT\u0027, mot: \u0027CONTESTADOR AUTOMATICO\u0027 },\n        \u0027voicemail-detected\u0027:      { recall: 5, maxRetries: 1, advancePhone: true, nom: \u0027NO CONTACTO NO JUSTIFICADO\u0027, cod: \u0027CONTESAUT\u0027, mot: \u0027CONTESTADOR AUTOMATICO\u0027 },\n        \u0027answering-machine\u0027:       { recall: 5, maxRetries: 1, advancePhone: true, nom: \u0027NO CONTACTO NO JUSTIFICADO\u0027, cod: \u0027CONTESAUT\u0027, mot: \u0027CONTESTADOR AUTOMATICO\u0027 },\n        \u0027machine-detected\u0027:        { recall: 5, maxRetries: 1, advancePhone: true, nom: \u0027NO CONTACTO NO JUSTIFICADO\u0027, cod: \u0027CONTESAUT\u0027, mot: \u0027CONTESTADOR AUTOMATICO\u0027 },\n        \u0027voicemail-message-left\u0027:  { recall: 5, maxRetries: 1, advancePhone: true, nom: \u0027NO CONTACTO NO JUSTIFICADO\u0027, cod: \u0027CONTESAUT\u0027, mot: \u0027CONTESTADOR AUTOMATICO\u0027 },\n        \u0027customer-rejected-call\u0027:  { recall: 0, maxRetries: 1, advancePhone: true, nom: \u0027CONTACTO FALLIDO NO JUSTIFICADO\u0027, cod: \u0027ERRENLALLA\u0027, mot: \u0027ERROR EN LA LLAMADA\u0027 },\n        \u0027blocked\u0027:                 { recall: 0, maxRetries: 1, advancePhone: true, nom: \u0027CONTACTO FALLIDO NO JUSTIFICADO\u0027, cod: \u0027ERRENLALLA\u0027, mot: \u0027ERROR EN LA LLAMADA\u0027 },\n        \u0027rejected\u0027:                { recall: 0, maxRetries: 1, advancePhone: true, nom: \u0027CONTACTO FALLIDO NO JUSTIFICADO\u0027, cod: \u0027ERRENLALLA\u0027, mot: \u0027ERROR EN LA LLAMADA\u0027 },\n        \u0027compliance-rejected\u0027:     { recall: 0, maxRetries: 1, advancePhone: true, nom: \u0027CONTACTO FALLIDO NO JUSTIFICADO\u0027, cod: \u0027ERRENLALLA\u0027, mot: \u0027ERROR EN LA LLAMADA\u0027 },\n        \u0027moderation-rejected\u0027:     { recall: 0, maxRetries: 1, advancePhone: true, nom: \u0027CONTACTO FALLIDO NO JUSTIFICADO\u0027, cod: \u0027ERRENLALLA\u0027, mot: \u0027ERROR EN LA LLAMADA\u0027 },\n        \u0027failed\u0027:                  { recall: 5, maxRetries: 1, advancePhone: true, nom: \u0027NO CONTACTO JUSTIFICADO\u0027, cod: \u0027NUMAVE\u0027, mot: \u0027NUMERO AVERIADO\u0027 },\n        \u0027connection-error\u0027:        { recall: 5, maxRetries: 1, advancePhone: true, nom: \u0027NO CONTACTO JUSTIFICADO\u0027, cod: \u0027NUMAVE\u0027, mot: \u0027NUMERO AVERIADO\u0027 },\n        \u0027transport-error-\u0027:        { recall: 5, maxRetries: 1, advancePhone: true, nom: \u0027NO CONTACTO JUSTIFICADO\u0027, cod: \u0027NUMAVE\u0027, mot: \u0027NUMERO AVERIADO\u0027 },\n        \u0027pipeline-error-\u0027:         { recall: 0, maxRetries: 0, advancePhone: true, nom: \u0027NO CONTACTO JUSTIFICADO\u0027, cod: \u0027NUMAVE\u0027, mot: \u0027NUMERO AVERIADO\u0027 },\n        \u0027assistant-error-\u0027:        { recall: 0, maxRetries: 0, advancePhone: true, nom: \u0027NO CONTACTO JUSTIFICADO\u0027, cod: \u0027NUMAVE\u0027, mot: \u0027NUMERO AVERIADO\u0027 },\n        \u0027unknown-error\u0027:           { recall: 0, maxRetries: 0, advancePhone: true, nom: \u0027NO CONTACTO JUSTIFICADO\u0027, cod: \u0027NUMAVE\u0027, mot: \u0027NUMERO AVERIADO\u0027 },\n        \u0027server-url-\u0027:             { recall: 0, maxRetries: 0, advancePhone: true, nom: \u0027NO CONTACTO JUSTIFICADO\u0027, cod: \u0027NUMAVE\u0027, mot: \u0027NUMERO AVERIADO\u0027 },\n        \u0027tool-call-\u0027:              { recall: 0, maxRetries: 0, advancePhone: true, nom: \u0027NO CONTACTO JUSTIFICADO\u0027, cod: \u0027NUMAVE\u0027, mot: \u0027NUMERO AVERIADO\u0027 }\n      },\n      phoneRuleDefault: { recall: 5, maxRetries: 1, advancePhone: true, nom: \u0027NO CONTACTO JUSTIFICADO\u0027, cod: \u0027NUMAVE\u0027, mot: \u0027NUMERO AVERIADO\u0027 }\n    },\n    calendar: { feriados: [\u00272026-04-30\u0027, \u00272026-05-01\u0027] },\n    formats: { date: \u0027DD-MM-YYYY\u0027, time: \u0027HH:MM\u0027, luxonDate: \u0027dd-MM-yyyy\u0027, luxonTime: \u0027HH:mm\u0027 },\n    phoneFields: [\u0027telefono_preferido\u0027,\u0027telefono1\u0027,\u0027telefono2\u0027,\u0027telefono3\u0027,\u0027telefono4\u0027,\u0027telefono5\u0027,\u0027telefono6\u0027,\u0027telefono\u0027,\u0027tel1\u0027,\u0027tel2\u0027,\u0027tel3\u0027,\u0027tel4\u0027,\u0027tel5\u0027,\u0027tel6\u0027],\n    retryNomenclaturas: [\u0027NO CONTACTO NO JUSTIFICADO\u0027,\u0027NO CONTACTO JUSTIFICADO\u0027,\u0027PENDIENTE DE ACEPTACION\u0027,\u0027CONTACTO FALLIDO NO JUSTIFICADO\u0027],\n    noPhoneClassification: { nomenclatura: \u0027NO CONTACTO JUSTIFICADO\u0027, codigo_respuesta: \u0027NUMAVE\u0027, motivo: \u0027NUMERO AVERIADO\u0027 },\n    catalog: [\n      { nomenclatura: \u0027ACEPTACION\u0027, codigo_respuesta: \u0027NORECESTDECUE\u0027, motivo: \u0027NO RECIBE ESTADOS DE CUENTA\u0027 },\n      { nomenclatura: \u0027ACEPTACION\u0027, codigo_respuesta: \u0027PAGNOREG\u0027, motivo: \u0027PAGO NO REGISTRADO\u0027 },\n      { nomenclatura: \u0027CONTACTO FALLIDO JUSTIFICADO\u0027, codigo_respuesta: \u0027FAL03\u0027, motivo: \u0027FALLECIDO\u0027 },\n      { nomenclatura: \u0027CONTACTO FALLIDO JUSTIFICADO\u0027, codigo_respuesta: \u0027MSJTERCEROS\u0027, motivo: \u0027MENSAJE CON TERCEROS\u0027 },\n      { nomenclatura: \u0027CONTACTO FALLIDO JUSTIFICADO\u0027, codigo_respuesta: \u0027NOAYU\u0027, motivo: \u0027NO AYUDA\u0027 },\n      { nomenclatura: \u0027CONTACTO FALLIDO JUSTIFICADO\u0027, codigo_respuesta: \u0027NUMEQU\u0027, motivo: \u0027NUMERO EQUIVOCADO\u0027 },\n      { nomenclatura: \u0027CONTACTO FALLIDO NO JUSTIFICADO\u0027, codigo_respuesta: \u0027ERRENLALLA\u0027, motivo: \u0027ERROR EN LA LLAMADA\u0027 },\n      { nomenclatura: \u0027CONTACTO FALLIDO NO JUSTIFICADO\u0027, codigo_respuesta: \u0027OCU08\u0027, motivo: \u0027OCUPADO\u0027 },\n      { nomenclatura: \u0027NO ACEPTACION\u0027, codigo_respuesta: \u0027DESPROD\u0027, motivo: \u0027DESACUERDO POR DESCONOCIMIENTO EN LAS CONDICIONES DEL SERVICIO Y/O PRODUCTO\u0027 },\n      { nomenclatura: \u0027NO ACEPTACION\u0027, codigo_respuesta: \u0027DEUOTRPER\u0027, motivo: \u0027DEUDA ES DE OTRA PERSONA\u0027 },\n      { nomenclatura: \u0027NO ACEPTACION\u0027, codigo_respuesta: \u0027RESINGPERNOCOICO\u0027, motivo: \u0027INGRESO PERCIBIDO NO COINCIDE CON FECHA DE PAGO\u0027 },\n      { nomenclatura: \u0027NO ACEPTACION\u0027, codigo_respuesta: \u0027NOTIETRA\u0027, motivo: \u0027NO TIENE TRABAJO\u0027 },\n      { nomenclatura: \u0027NO ACEPTACION\u0027, codigo_respuesta: \u0027PRIAOTRDEU\u0027, motivo: \u0027PRIORIDAD A OTRAS DEUDAS\u0027 },\n      { nomenclatura: \u0027NO ACEPTACION\u0027, codigo_respuesta: \u0027RESEMESANCOV19\u0027, motivo: \u0027PASA POR UN PROBLEMA DE SALUD (SUYO O FAMILIAR)\u0027 },\n      { nomenclatura: \u0027NO ACEPTACION\u0027, codigo_respuesta: \u0027PROBLSALUD\u0027, motivo: \u0027PASA POR UN PROBLEMA (SUYO O FAMILIAR) DE SALUD, ACCIDENTE, VIAJE O CALAMIDAD\u0027 },\n      { nomenclatura: \u0027NO ACEPTACION\u0027, codigo_respuesta: \u0027RESROBDENEGOFRA\u0027, motivo: \u0027ROBO DE NEGOCIO O FRAUDE\u0027 },\n      { nomenclatura: \u0027NO ACEPTACION\u0027, codigo_respuesta: \u0027SINJUS\u0027, motivo: \u0027SIN JUSTIFICACION\u0027 },\n      { nomenclatura: \u0027NO ACEPTACION\u0027, codigo_respuesta: \u0027RESSUEATRMASDEUN\u0027, motivo: \u0027SUELDO ATRASADO MAS DE UN MES\u0027 },\n      { nomenclatura: \u0027NO ACEPTACION\u0027, codigo_respuesta: \u0027RESSUEMASBAJ-EST\u0027, motivo: \u0027SUELDO MAS BAJO - ESTA MAL SU NEGOCIO\u0027 },\n      { nomenclatura: \u0027NO ACEPTACION\u0027, codigo_respuesta: \u0027RESSUPDEIDE\u0027, motivo: \u0027SUPLANTACION DE IDENTIDAD\u0027 },\n      { nomenclatura: \u0027NO CONTACTO JUSTIFICADO\u0027, codigo_respuesta: \u0027CLIENELEXT\u0027, motivo: \u0027CLIENTE EN EL EXTERIOR\u0027 },\n      { nomenclatura: \u0027NO CONTACTO JUSTIFICADO\u0027, codigo_respuesta: \u0027NUMAVE\u0027, motivo: \u0027NUMERO AVERIADO\u0027 },\n      { nomenclatura: \u0027NO CONTACTO NO JUSTIFICADO\u0027, codigo_respuesta: \u0027CONTESAUT\u0027, motivo: \u0027CONTESTADOR AUTOMATICO\u0027 },\n      { nomenclatura: \u0027NO CONTACTO NO JUSTIFICADO\u0027, codigo_respuesta: \u0027NOCON05\u0027, motivo: \u0027NO CONTESTAN\u0027 },\n      { nomenclatura: \u0027PENDIENTE DE ACEPTACION\u0027, codigo_respuesta: \u0027RESAGECONTER\u0027, motivo: \u0027AGENDAMIENTO CONTACTO TERCERO\u0027 },\n      { nomenclatura: \u0027PENDIENTE DE ACEPTACION\u0027, codigo_respuesta: \u0027RESAGECONTIT\u0027, motivo: \u0027AGENDAMIENTO CONTACTO TITULAR\u0027 },\n      { nomenclatura: \u0027PENDIENTE DE ACEPTACION\u0027, codigo_respuesta: \u0027EXTIPAGO\u0027, motivo: \u0027ASESOR O GERENTE EXTIENDE PAGO\u0027 },\n      { nomenclatura: \u0027PENDIENTE DE ACEPTACION\u0027, codigo_respuesta: \u0027COMPAGOASECORP\u0027, motivo: \u0027COMPROMISO ASESOR CLIENTE CORPORATIVO\u0027 },\n      { nomenclatura: \u0027PENDIENTE DE ACEPTACION\u0027, codigo_respuesta: \u0027COMPAGO\u0027, motivo: \u0027COMPROMISO PAGO\u0027 },\n      { nomenclatura: \u0027PENDIENTE DE ACEPTACION\u0027, codigo_respuesta: \u0027PRECON\u0027, motivo: \u0027PREVIAMENTE CONTACTADO\u0027 },\n      { nomenclatura: \u0027PENDIENTE DE ACEPTACION\u0027, codigo_respuesta: \u0027RECDEFECDEPAG\u0027, motivo: \u0027RECORDATORIO DE FECHA DE PAGO\u0027 },\n      { nomenclatura: \u0027PENDIENTE DE ACEPTACION\u0027, codigo_respuesta: \u0027VIATEM\u0027, motivo: \u0027VIAJE TEMPORAL\u0027 }\n    ]\n  };\n  item.json.cfg = cfg;\n  return item;\n});"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -41700,
+                                       7680
+                                   ],
+                      "id":  "ab0c66e7-18c1-44ef-b865-692d4ec9a9c2",
+                      "name":  "CONFIG INICIAL"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "return items.map(item =\u003e {\n  const lead = item.json;\n  const cfg = $items(\u0027CONFIG INICIAL\u0027, 0, 0)[0].json.cfg;\n\n  const defaultCC = (lead.system_payload?.CC || \u0027+593\u0027).toString();\n  const normalizeList = (v) =\u003e Array.isArray(v) ? v : String(v || \u0027\u0027).split(\u0027,\u0027);\n  const windowFields = normalizeList(lead.phones).map(s =\u003e s.trim()).filter(Boolean);\n  const phoneFields = windowFields.length ? windowFields : cfg.phoneFields;\n\n  const toE164 = (raw) =\u003e {\n    let x = String(raw || \u0027\u0027).replace(/[^\\d+]/g, \u0027\u0027).trim();\n    if (!x) return \u0027\u0027;\n    if (x.startsWith(\u002700\u0027)) x = \u0027+\u0027 + x.slice(2);\n    if (!x.startsWith(\u0027+\u0027)) {\n      if (defaultCC === \u0027+593\u0027) {\n        if (x.startsWith(\u00270\u0027)) x = x.slice(1);\n        if (/^593\\d+$/.test(x)) return \u0027+\u0027 + x;\n        if (/^\\d+$/.test(x)) return \u0027+593\u0027 + x;\n      } else if (/^\\d+$/.test(x)) {\n        return defaultCC + x;\n      }\n    }\n    return x;\n  };\n\n  const valid = (n) =\u003e /^\\+\\d{7,15}$/.test(n);\n\n  const available = phoneFields\n    .map(field =\u003e ({ field, raw: lead[field], value: toE164(lead[field]) }))\n    .filter(p =\u003e p.raw != null \u0026\u0026 String(p.raw).trim() !== \u0027\u0027);\n\n  const unique = [];\n  const seen = new Set();\n  for (const p of available) {\n    if (!p.value || seen.has(p.value)) continue;\n    seen.add(p.value);\n    unique.push({ ...p, valid: valid(p.value) });\n  }\n\n  const idx = Math.max(0, Number(lead.telefono_index ?? 0));\n  const selected = unique.slice(idx).find(p =\u003e p.valid);\n\n  lead.telefono_actual = selected?.value || \u0027\u0027;\n  lead.telefono_field = selected?.field || \u0027\u0027;\n  lead.isOutOfNumbers = !selected;\n  lead.hasValidPhones = unique.some(p =\u003e p.valid);\n\n  return item;\n});"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -41460,
+                                       7520
+                                   ],
+                      "id":  "25cd631d-dc91-434a-8fe7-32c3e3d0dd57",
+                      "name":  "PROCESA LOS NUMEROS Y FORMATEA1"
+                  },
+                  {
+                      "parameters":  {
+                                         "assignments":  {
+                                                             "assignments":  [
+                                                                                 {
+                                                                                     "id":  "2087ce1a-f9f7-457f-bd4f-02f2f630b924",
+                                                                                     "name":  "num_operacion",
+                                                                                     "value":  "={{ $json.num_operacion || $json.metadata?.num_operacion || null }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "d2282476-a9f7-4f01-98d3-bfa2a7b59103",
+                                                                                     "name":  "resumen_llamada",
+                                                                                     "value":  "={{ $json.structuredOutputs?.resumen_llamada ?? $json.structuredOutputs?.Resumen_Llamada ?? $json.structuredOutputs?.resumen ?? $json.artifact?.structuredOutputs?.resumen_llamada ?? $json.artifact?.structuredOutputs?.Resumen_Llamada ?? $json.artifact?.structuredOutputs?.resumen ?? $json.analysis?.structuredOutputs?.resumen_llamada ?? $json.analysis?.structuredOutputs?.Resumen_Llamada ?? $json.analysis?.structuredOutputs?.resumen ?? $json.summary ?? null }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "a3af6af1-3813-4286-99fe-4b155ccee4a0",
+                                                                                     "name":  "transcripcion_llamada",
+                                                                                     "value":  "={{ $json.transcript }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "3056d527-0588-49a1-a574-f11e839970c1",
+                                                                                     "name":  "ultimo_resultado_llamada",
+                                                                                     "value":  "={{ $json.endedReason }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "724f290b-d362-43e0-89eb-3e13f463211e",
+                                                                                     "name":  "startcall",
+                                                                                     "value":  "={{ $json.startedAt }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "d91ab883-37c7-4f7d-af5c-8aa6f7db35f6",
+                                                                                     "name":  "endedcall",
+                                                                                     "value":  "={{ $json.endedAt }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "78794302-9314-4da5-94a9-e6e0164443a8",
+                                                                                     "name":  "link_audio_vapi",
+                                                                                     "value":  "={{ $json.recordingUrl }}",
+                                                                                     "type":  "string"
+                                                                                 }
+                                                                             ]
+                                                         },
+                                         "includeOtherFields":  true,
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.set",
+                      "typeVersion":  3.4,
+                      "position":  [
+                                       -41160,
+                                       7560
+                                   ],
+                      "id":  "a28e6ed5-029e-4cff-9249-d42500415a08",
+                      "name":  "Establece los valores a guardar1",
+                      "onError":  "continueErrorOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict",
+                                                                            "version":  2
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "1b371bae-0cc3-4ed2-a562-773553e78c73",
+                                                                                   "leftValue":  "={{ $json.status_sugerido }}",
+                                                                                   "rightValue":  "FINAL",
+                                                                                   "operator":  {
+                                                                                                    "type":  "string",
+                                                                                                    "operation":  "equals",
+                                                                                                    "name":  "filter.operator.equals"
+                                                                                                }
+                                                                               },
+                                                                               {
+                                                                                   "id":  "87d21e8c-2d93-48ad-b5ce-11fcbf041c34",
+                                                                                   "leftValue":  "={{ $json.status_sugerido }}",
+                                                                                   "rightValue":  "REINTENTAR",
+                                                                                   "operator":  {
+                                                                                                    "type":  "string",
+                                                                                                    "operation":  "equals",
+                                                                                                    "name":  "filter.operator.equals"
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "or"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.2,
+                      "position":  [
+                                       -40560,
+                                       7420
+                                   ],
+                      "id":  "41e30077-2b2c-4e54-a2b0-848217d5a077",
+                      "name":  "SI EL ESTADO ES PENDIENTE O REINTENTAR1"
+                  },
+                  {
+                      "parameters":  {
+                                         "assignments":  {
+                                                             "assignments":  [
+                                                                                 {
+                                                                                     "id":  "86765617-a184-4c8f-a631-e12b2aafbadf",
+                                                                                     "name":  "num_operacion",
+                                                                                     "value":  "={{ $(\u0027Establece los valores a guardar1\u0027).item.json.num_operacion }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "1996769d-e2a9-4f0b-b4bb-498eb8bd0e4c",
+                                                                                     "name":  "nomenclatura",
+                                                                                     "value":  "={{ $json.nomenclatura }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "428476b4-abee-4615-8b78-64139a3039f1",
+                                                                                     "name":  "codigo_respuesta",
+                                                                                     "value":  "={{ $json.codigo_respuesta }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "b0cecaeb-3f72-4fa7-bb4a-90ade936cb6b",
+                                                                                     "name":  "motivo",
+                                                                                     "value":  "={{ $json.motivo }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "1bd19909-6826-4d90-b566-7aab020bbf5d",
+                                                                                     "name":  "fecha_gestion",
+                                                                                     "value":  "={{ $(\u0027Establece los valores a guardar1\u0027).item.json.endedcall || $now }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "c1fc77e0-6926-42d7-91ba-a3097db928a0",
+                                                                                     "name":  "sentimiento",
+                                                                                     "value":  "={{ $json.sentimiento }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "95f26141-cedb-4774-844f-0d12fb2308db",
+                                                                                     "name":  "transcripcion_llamada",
+                                                                                     "value":  "={{ $(\u0027Establece los valores a guardar1\u0027).item.json.transcripcion_llamada }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "694e5b37-49a8-4219-a4b1-3168b9a9cbcc",
+                                                                                     "name":  "resumen_llamada",
+                                                                                     "value":  "={{ $json.resumen_llamada || $(\u0027Establece los valores a guardar1\u0027).item.json.resumen_llamada || null }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "f66e0a51-6ce5-4530-b2da-fd8385d2d914",
+                                                                                     "name":  "link_audio_vapi",
+                                                                                     "value":  "={{ $(\u0027Establece los valores a guardar1\u0027).item.json.link_audio_vapi }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "7f9d6f4c-f22f-4533-a766-2f1c9897ebf2",
+                                                                                     "name":  "id_llamada",
+                                                                                     "value":  "={{ $(\u0027Establece los valores a guardar1\u0027).item.json.id || $(\u0027Establece los valores a guardar1\u0027).item.json.id_llamada || $json.id_llamada || null }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "d38ae067-b88e-42a8-8f3c-9afedf153f66",
+                                                                                     "name":  "estado_flujo",
+                                                                                     "value":  "={{ $json.estado_flujo }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "d6ee8587-9d57-40ee-9bc4-27fa5174e9f0",
+                                                                                     "name":  "reintentar_iso",
+                                                                                     "value":  "={{ $json.reintentar_iso }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "d58fa7b2-fdc4-4880-8e98-a438494f37d0",
+                                                                                     "name":  "duracion_segundos",
+                                                                                     "value":  "={{ $json.duracion_segundos }}",
+                                                                                     "type":  "number"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "901a8851-bde0-4314-a0f1-19e32c471112",
+                                                                                     "name":  "intentos_llamada",
+                                                                                     "value":  "={{ Number($json.intentos_llamada || 0) }}",
+                                                                                     "type":  "number"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "dbef667e-430e-465d-81e6-7d6c0f6a409c",
+                                                                                     "name":  "win_tries",
+                                                                                     "value":  "={{ Number($json.win_tries || 0) }}",
+                                                                                     "type":  "number"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "a6fd63df-150e-4659-a688-01c3dade246c",
+                                                                                     "name":  "telefono_index",
+                                                                                     "value":  "={{ Number($json.telefono_index || 0) }}",
+                                                                                     "type":  "number"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "ddfb0bc3-5fce-47d9-b19e-d7922a82ed16",
+                                                                                     "name":  "win_stamp",
+                                                                                     "value":  "={{ $json.win_stamp }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "736904ca-0c0c-41f7-b098-674451e2800f",
+                                                                                     "name":  "ultimo_resultado_llamada",
+                                                                                     "value":  "={{ $(\u0027Establece los valores a guardar1\u0027).item.json.ultimo_resultado_llamada }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "aa2464f11c9ccf71",
+                                                                                     "name":  "fecha_reprogramada",
+                                                                                     "value":  "={{ ($json.fecha_reprogramada == null || String($json.fecha_reprogramada).trim() === \u0027\u0027) ? null : $json.fecha_reprogramada }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "3b6420a17a41ccc4",
+                                                                                     "name":  "es_familiar",
+                                                                                     "value":  "={{ $json.es_familiar }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "1c509f1d0bc1f971",
+                                                                                     "name":  "telefono_preferido",
+                                                                                     "value":  "={{ ($json.telefono_preferido == null || String($json.telefono_preferido).trim() === \u0027\u0027) ? null : $json.telefono_preferido }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "aceptacion_field_new",
+                                                                                     "name":  "aceptacion",
+                                                                                     "value":  "={{ $json.aceptacion }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "fecha_promesa_new",
+                                                                                     "name":  "fecha_promesa",
+                                                                                     "value":  "={{ $json.fecha_promesa }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "monto_promesa_new",
+                                                                                     "name":  "monto_promesa",
+                                                                                     "value":  "={{ $json.monto_promesa }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "canal_new",
+                                                                                     "name":  "canal",
+                                                                                     "value":  "={{ $json.canal }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "phase4_agente_tipo_037b373b",
+                                                                                     "name":  "agente_tipo",
+                                                                                     "value":  "={{ $json.agente_tipo || $json.metadata?.agente_tipo || \u0027COBROS\u0027 }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "phase4_user_name_gestion_e7db4133",
+                                                                                     "name":  "user_name_gestion",
+                                                                                     "value":  "={{ $json.agente_tipo || $json.metadata?.agente_tipo || \u0027COBROS\u0027 }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "phase4_numero_telefono_20acd188",
+                                                                                     "name":  "numero_telefono",
+                                                                                     "value":  "={{ $json.telefono_actual || $node[\u0027PROCESA LOS NUMEROS Y FORMATEA1\u0027].json.telefono_actual || null }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "phase4_hora_inicio_llamada_cd95e415",
+                                                                                     "name":  "hora_inicio_llamada",
+                                                                                     "value":  "={{ $(\u0027Establece los valores a guardar1\u0027).item.json.startcall || null }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "phase4_hora_fin_llamada_0c3831c2",
+                                                                                     "name":  "hora_fin_llamada",
+                                                                                     "value":  "={{ $(\u0027Establece los valores a guardar1\u0027).item.json.endedcall || null }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "phase4_hora_gestion_e8165653",
+                                                                                     "name":  "hora_gestion",
+                                                                                     "value":  "={{ (() =\u003e { const x = $(\u0027Establece los valores a guardar1\u0027).item.json.endedcall || $json.fecha_gestion || null; if (!x) return null; const d = new Date(x); if (isNaN(d.getTime())) return null; return d.toLocaleTimeString(\u0027en-GB\u0027, { timeZone: \u0027America/Guayaquil\u0027, hour12: false }).slice(0,8); })() }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "phase4_cedula_00d661c9",
+                                                                                     "name":  "cedula",
+                                                                                     "value":  "={{ $json.cedula || $json.metadata?.cedula || null }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "phase4_contactoalo_064a639f",
+                                                                                     "name":  "contactoalo",
+                                                                                     "value":  "={{ $json.contactoalo ?? $json.contacto_alo ?? null }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "phase4_duracion_llamada_f75c9470",
+                                                                                     "name":  "duracion_llamada",
+                                                                                     "value":  "={{ $json.duracion_segundos || null }}",
+                                                                                     "type":  "number"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "phase4_contactoefectivo_new",
+                                                                                     "name":  "contactoefectivo",
+                                                                                     "value":  "={{ $json.contactoefectivo ?? $json.contacto_efectivo ?? null }}",
+                                                                                     "type":  "string"
+                                                                                 }
+                                                                             ]
+                                                         },
+                                         "includeOtherFields":  true,
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.set",
+                      "typeVersion":  3.4,
+                      "position":  [
+                                       -40100,
+                                       7480
+                                   ],
+                      "id":  "2d1d2050-80f3-4388-9461-5fea73fff8c7",
+                      "name":  "mapea los campos del cliente1",
+                      "onError":  "continueErrorOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "upsert",
+                                         "schema":  {
+                                                        "__rl":  true,
+                                                        "value":  "public",
+                                                        "mode":  "list",
+                                                        "cachedResultName":  "public"
+                                                    },
+                                         "table":  {
+                                                       "__rl":  true,
+                                                       "mode":  "list",
+                                                       "value":  "solidario_llamadas",
+                                                       "cachedResultName":  "solidario_llamadas"
+                                                   },
+                                         "columns":  {
+                                                         "mappingMode":  "defineBelow",
+                                                         "value":  {
+                                                                       "num_operacion":  "={{ String($json.num_operacion || $(\"mapea los campos del cliente1\").item.json.num_operacion || \"\") }}",
+                                                                       "cedula":  "={{ $json.cedula || $(\"mapea los campos del cliente1\").item.json.cedula || null }}",
+                                                                       "id_llamada":  "={{ $json.id_llamada || $(\"mapea los campos del cliente1\").item.json.id_llamada || $(\"mapea los campos del cliente1\").item.json.id || null }}",
+                                                                       "fecha_gestion":  "={{ $json.fecha_gestion || $(\"mapea los campos del cliente1\").item.json.fecha_gestion || $now }}",
+                                                                       "hora_gestion":  "={{ $json.hora_gestion || $(\"mapea los campos del cliente1\").item.json.hora_gestion || null }}",
+                                                                       "nomenclatura":  "={{ $json.nomenclatura || $(\"mapea los campos del cliente1\").item.json.nomenclatura || null }}",
+                                                                       "codigo_respuesta":  "={{ $json.codigo_respuesta || $(\"mapea los campos del cliente1\").item.json.codigo_respuesta || null }}",
+                                                                       "motivo":  "={{ $json.motivo || $(\"mapea los campos del cliente1\").item.json.motivo || null }}",
+                                                                       "sentimiento":  "={{ $json.sentimiento ?? $(\"mapea los campos del cliente1\").item.json.sentimiento ?? null }}",
+                                                                       "transcripcion_llamada":  "={{ $json.transcripcion_llamada || $(\"mapea los campos del cliente1\").item.json.transcripcion_llamada || null }}",
+                                                                       "resumen_llamada":  "={{ $json.resumen_llamada ?? $(\"mapea los campos del cliente1\").item.json.resumen_llamada ?? null }}",
+                                                                       "link_audio_vapi":  "={{ $json.link_audio_vapi || $(\"mapea los campos del cliente1\").item.json.link_audio_vapi || null }}",
+                                                                       "ultimo_resultado_llamada":  "={{ $json.ultimo_resultado_llamada || $(\"mapea los campos del cliente1\").item.json.ultimo_resultado_llamada || null }}",
+                                                                       "es_familiar":  "={{ $json.es_familiar || $(\"mapea los campos del cliente1\").item.json.es_familiar || null }}",
+                                                                       "duracion_llamada":  "={{ $json.duracion_llamada || $(\"mapea los campos del cliente1\").item.json.duracion_llamada || $(\"mapea los campos del cliente1\").item.json.duracion_segundos || null }}",
+                                                                       "hora_inicio_llamada":  "={{ $json.hora_inicio_llamada || $(\"mapea los campos del cliente1\").item.json.hora_inicio_llamada || $(\"mapea los campos del cliente1\").item.json.startcall || null }}",
+                                                                       "hora_fin_llamada":  "={{ $json.hora_fin_llamada || $(\"mapea los campos del cliente1\").item.json.hora_fin_llamada || $(\"mapea los campos del cliente1\").item.json.endedcall || null }}",
+                                                                       "aceptacion":  "={{ $json.aceptacion || $(\"mapea los campos del cliente1\").item.json.aceptacion || null }}",
+                                                                       "contactoalo":  "={{ $json.contactoalo || $(\"mapea los campos del cliente1\").item.json.contactoalo || $(\"mapea los campos del cliente1\").item.json.contactoefectivo || null }}",
+                                                                       "contactoefectivo":  "={{ $json.contactoefectivo || $(\"mapea los campos del cliente1\").item.json.contactoefectivo || null }}",
+                                                                       "monto_promesa":  "={{ $json.monto_promesa ?? $(\"mapea los campos del cliente1\").item.json.monto_promesa ?? null }}",
+                                                                       "fecha_promesa":  "={{ $json.fecha_promesa ?? $(\"mapea los campos del cliente1\").item.json.fecha_promesa ?? null }}",
+                                                                       "numero_telefono":  "={{ $json.numero_telefono || $json.telefono_actual || $json.telefono_preferido || $(\"mapea los campos del cliente1\").item.json.numero_telefono || $(\"mapea los campos del cliente1\").item.json.telefono_actual || $(\"mapea los campos del cliente1\").item.json.telefono_preferido || null }}"
+                                                                   },
+                                                         "matchingColumns":  [
+                                                                                 "id_llamada"
+                                                                             ],
+                                                         "schema":  [
+                                                                        {
+                                                                            "id":  "id",
+                                                                            "displayName":  "id",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  true,
+                                                                            "display":  true,
+                                                                            "type":  "number",
+                                                                            "canBeUsedToMatch":  true,
+                                                                            "removed":  true
+                                                                        },
+                                                                        {
+                                                                            "id":  "num_operacion",
+                                                                            "displayName":  "num_operacion",
+                                                                            "required":  true,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "cedula",
+                                                                            "displayName":  "cedula",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "id_llamada",
+                                                                            "displayName":  "id_llamada",
+                                                                            "required":  true,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  true
+                                                                        },
+                                                                        {
+                                                                            "id":  "fecha_gestion",
+                                                                            "displayName":  "fecha_gestion",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "dateTime",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "hora_gestion",
+                                                                            "displayName":  "hora_gestion",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "nomenclatura",
+                                                                            "displayName":  "nomenclatura",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "codigo_respuesta",
+                                                                            "displayName":  "codigo_respuesta",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "motivo",
+                                                                            "displayName":  "motivo",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "sentimiento",
+                                                                            "displayName":  "sentimiento",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "transcripcion_llamada",
+                                                                            "displayName":  "transcripcion_llamada",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "resumen_llamada",
+                                                                            "displayName":  "resumen_llamada",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "link_audio_vapi",
+                                                                            "displayName":  "link_audio_vapi",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "ultimo_resultado_llamada",
+                                                                            "displayName":  "ultimo_resultado_llamada",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "es_familiar",
+                                                                            "displayName":  "es_familiar",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "duracion_llamada",
+                                                                            "displayName":  "duracion_llamada",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "number",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "hora_inicio_llamada",
+                                                                            "displayName":  "hora_inicio_llamada",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "dateTime",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "hora_fin_llamada",
+                                                                            "displayName":  "hora_fin_llamada",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "dateTime",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "aceptacion",
+                                                                            "displayName":  "aceptacion",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "contactoalo",
+                                                                            "displayName":  "contactoalo",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "created_at",
+                                                                            "displayName":  "created_at",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "dateTime",
+                                                                            "canBeUsedToMatch":  false,
+                                                                            "removed":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "updated_at",
+                                                                            "displayName":  "updated_at",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "dateTime",
+                                                                            "canBeUsedToMatch":  false,
+                                                                            "removed":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "contactoefectivo",
+                                                                            "displayName":  "contactoefectivo",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "monto_promesa",
+                                                                            "displayName":  "monto_promesa",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "number",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "fecha_promesa",
+                                                                            "displayName":  "fecha_promesa",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "dateTime",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "numero_telefono",
+                                                                            "displayName":  "numero_telefono",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        }
+                                                                    ]
+                                                     },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.5,
+                      "position":  [
+                                       -39460,
+                                       7640
+                                   ],
+                      "id":  "01ae9d80-ad45-42c2-8bc6-47bc132d0e94",
+                      "name":  "GUARDAR REPORTE",
+                      "retryOnFail":  true,
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "Iz7EEp0WgJu3LXhn",
+                                                           "name":  "Gea_postgress"
+                                                       }
+                                      },
+                      "onError":  "continueErrorOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "return items.map(item =\u003e {\n  const root = item.json;\n  const cfg = root.cfg || $items(\u0027CONFIG INICIAL\u0027, 0, 0)[0].json.cfg;\n  const lastAgentType = String(root.agente_tipo || root.metadata?.agente_tipo || \u0027\u0027).toUpperCase();\n  const evtReason = String(root.endedReason || root.event_type || \u0027\u0027).toLowerCase();\n\n  // Helper to extract and normalize data\n  const extracted = {};\n  const processData = (data) =\u003e {\n    if (!data) return;\n    \n    // If it\u0027s a string, try to parse it as JSON\n    if (typeof data === \u0027string\u0027 \u0026\u0026 (data.trim().startsWith(\u0027{\u0027) || data.trim().startsWith(\u0027[\u0027))) {\n        try {\n            const parsed = JSON.parse(data);\n            processData(parsed);\n            return;\n        } catch (e) {}\n    }\n\n    if (typeof data !== \u0027object\u0027) return;\n\n    for (let [key, val] of Object.entries(data)) {\n      if (val === null || val === undefined) continue;\n      \n      const k = key.toLowerCase().trim();\n      \n      // Map specific keys to expected names\n      if (k === \u0027nomenclatura\u0027) extracted.nomenclatura = val;\n      else if (k === \u0027codigo_respuesta\u0027 || k === \u0027codigo\u0027) extracted.codigo_respuesta = val;\n      else if (k === \u0027motivo\u0027) extracted.motivo = val;\n      else if (k === \u0027fecha_promesa\u0027) extracted.fecha_promesa = val;\n      else if (k === \u0027monto_promesa\u0027) extracted.monto_promesa = val;\n      else if (k === \u0027canal_promesa\u0027 || k === \u0027canal\u0027) extracted.canal = val;\n      else if (k === \u0027fecha_reprogramada\u0027 || k === \u0027fecha_reagenda\u0027) extracted.fecha_reagenda = val;\n      else if (k === \u0027es_familiar\u0027) extracted.es_familiar = val;\n      else if (k === \u0027telefono_preferido\u0027) extracted.telefono_preferido = val;\n      else if (k === \u0027aceptacion\u0027) extracted.aceptacion = val;\n      else if (k === \u0027contactoefectivo\u0027) extracted.contactoefectivo = val;\n      else if (k === \u0027contactoalo\u0027) extracted.contactoalo = val;\n      else if (k === \u0027sentimiento_cliente\u0027 || k === \u0027sentimiento\u0027) extracted.sentimiento = val;\n      else if (k === \u0027resumen_llamada\u0027 || k === \u0027resumen\u0027) extracted.resumen_llamada = val;\n\n      // If the value itself is a JSON string, process it recursively\n      if (typeof val === \u0027string\u0027 \u0026\u0026 (val.trim().startsWith(\u0027{\u0027) || val.trim().startsWith(\u0027[\u0027))) {\n        try {\n          const parsed = JSON.parse(val);\n          processData(parsed);\n        } catch (e) {}\n      }\n    }\n  };\n\n  // 1. Search in structuredData\n  processData(root.analysis?.structuredData);\n\n  // 2. Search in tool call results from artifact.messages\n  const messages = root.artifact?.messages || [];\n  messages.forEach(m =\u003e {\n    if (m.role === \u0027tool\u0027) {\n        if (m.name) processData({ [m.name]: m.result });\n        else processData(m.result);\n    }\n  });\n\n  // 3. Search directly in root for any tool-call-like objects (the UUID-keyed objects)\n  Object.keys(root).forEach(k =\u003e {\n    const tool = root[k];\n    if (tool \u0026\u0026 typeof tool === \u0027object\u0027 \u0026\u0026 tool.name \u0026\u0026 tool.result !== undefined) {\n      processData({ [tool.name]: tool.result });\n    }\n  });\n\n  // Merge extracted fields into item.json\n  Object.assign(item.json, extracted);\n\n  // Policy logic for COBROS failures\n  if (lastAgentType === \u0027COBROS\u0027) {\n    if (![\u0027customer-ended-call\u0027, \u0027assistant-ended-call\u0027, \u0027assistant-forwarded-call\u0027, \u0027hangup\u0027].includes(evtReason) \u0026\u0026 evtReason !== \u0027\u0027) {\n      let rule = cfg.policyCobros.phoneRuleDefault;\n      for (const key in cfg.policyCobros.phoneRules) {\n        if (key.endsWith(\u0027-\u0027) \u0026\u0026 evtReason.startsWith(key)) { rule = cfg.policyCobros.phoneRules[key]; break; }\n        if (evtReason === key) { rule = cfg.policyCobros.phoneRules[key]; break; }\n      }\n      item.json.mapped_by_phonerule = true;\n      item.json.status_sugerido = cfg.states.retry;\n      return item;\n    }\n  }\n\n  const isFinalEvent = (String(root.event_type || \u0027\u0027).toLowerCase() === \u0027end-of-call-report\u0027);\n  if (!isFinalEvent) { item.json.status_sugerido = \u0027IGNORE\u0027; return item; }\n\n  // Final classification matching\n  let successValue = String(item.json.nomenclatura || item.json.codigo_respuesta || \u0027\u0027).toUpperCase();\n  let match = null;\n  if (successValue) {\n    match = cfg.catalog.find(c =\u003e c.nomenclatura.toUpperCase() === successValue || c.codigo_respuesta.toUpperCase() === successValue);\n  }\n\n  const isRetryableNom = cfg.retryNomenclaturas.includes(String(item.json.nomenclatura || \u0027\u0027).toUpperCase());\n  const isClosureCode = [\u0027COMPAGO\u0027, \u0027COMPAGOASECORP\u0027].includes(item.json.codigo_respuesta);\n\n  if (isRetryableNom \u0026\u0026 !isClosureCode) item.json.status_sugerido = cfg.states.retry;\n  else item.json.status_sugerido = \u0027FINAL\u0027;\n\n  return item;\n});"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -40840,
+                                       7480
+                                   ],
+                      "id":  "eb3cd806-b1f7-4e77-a148-df4b8230ee37",
+                      "name":  "MAPEO REGLAS DE MARCADO1",
+                      "onError":  "continueErrorOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "={{ (() =\u003e {\n  const cfg = $items(\u0027CONFIG INICIAL\u0027, 0, 0)[0].json.cfg;\n  const raw = String($json.num_operacion ?? $json.metadata?.num_operacion ?? \u0027\u0027).trim();\n  if (!raw) return `SELECT \u0027skip_fallback_sin_num_operacion\u0027 AS status`;\n\n  const numOperacion = raw.replace(/\u0027/g, \"\u0027\u0027\");\n\n  const hasSnapshot = [\n    $json.snapshot_estado_flujo,\n    $json.snapshot_fecha_reagenda,\n    $json.snapshot_intentos_llamada,\n    $json.snapshot_win_tries,\n    $json.snapshot_telefono_index,\n    $json.snapshot_win_stamp,\n    $json.snapshot_fecha_ultima_llamada,\n    $json.snapshot_telefono_preferido,\n    $json.snapshot_fecha_promesa,\n    $json.snapshot_monto_promesa,\n  ].some(v =\u003e v !== undefined);\n\n  if (hasSnapshot) {\n    const snapEstado = String($json.snapshot_estado_flujo ?? cfg.states.pending ?? \u0027PENDIENTE\u0027).replace(/\u0027/g, \"\u0027\u0027\");\n\n    const snapFechaReagendaRaw = $json.snapshot_fecha_reagenda;\n    const snapFechaReagendaSql = (snapFechaReagendaRaw == null || String(snapFechaReagendaRaw).trim() === \u0027\u0027)\n      ? \u0027NULL\u0027\n      : ` \u0027${String(snapFechaReagendaRaw).replace(/\u0027/g, \"\u0027\u0027\")}\u0027::timestamptz `;\n\n    const snapFechaUltRaw = $json.snapshot_fecha_ultima_llamada;\n    const snapFechaUltSql = (snapFechaUltRaw == null || String(snapFechaUltRaw).trim() === \u0027\u0027)\n      ? \u0027NULL\u0027\n      : ` \u0027${String(snapFechaUltRaw).replace(/\u0027/g, \"\u0027\u0027\")}\u0027::timestamptz `;\n\n    const snapTelPrefRaw = $json.snapshot_telefono_preferido;\n    const snapTelPrefSql = (snapTelPrefRaw == null || String(snapTelPrefRaw).trim() === \u0027\u0027)\n      ? \u0027NULL\u0027\n      : ` \u0027${String(snapTelPrefRaw).replace(/\u0027/g, \"\u0027\u0027\")}\u0027 `;\n\n    const snapFechaPromRaw = $json.snapshot_fecha_promesa;\n    const snapFechaPromSql = (snapFechaPromRaw == null || String(snapFechaPromRaw).trim() === \u0027\u0027)\n      ? \u0027NULL\u0027\n      : ` \u0027${String(snapFechaPromRaw).replace(/\u0027/g, \"\u0027\u0027\")}\u0027::date `;\n\n    const snapMontoPromNum = Number($json.snapshot_monto_promesa);\n    const snapMontoPromSql = Number.isFinite(snapMontoPromNum) ? String(snapMontoPromNum) : \u0027NULL\u0027;\n\n    const snapIntentos = Number($json.snapshot_intentos_llamada ?? 0);\n    const snapWinTries = Number($json.snapshot_win_tries ?? 0);\n    const snapTelIdx = Number($json.snapshot_telefono_index ?? 0);\n\n    const snapWinStampRaw = $json.snapshot_win_stamp;\n    const snapWinStampSql = (snapWinStampRaw == null || String(snapWinStampRaw).trim() === \u0027\u0027)\n      ? \u0027NULL\u0027\n      : ` \u0027${String(snapWinStampRaw).replace(/\u0027/g, \"\u0027\u0027\")}\u0027 `;\n\n    return `UPDATE ${cfg.db.schema}.${cfg.db.table}\n            SET estado_flujo = \u0027${snapEstado}\u0027,\n                fecha_reagenda = ${snapFechaReagendaSql},\n                intentos_llamada = ${Number.isFinite(snapIntentos) ? snapIntentos : 0},\n                win_tries = ${Number.isFinite(snapWinTries) ? snapWinTries : 0},\n                telefono_index = ${Number.isFinite(snapTelIdx) ? snapTelIdx : 0},\n                win_stamp = ${snapWinStampSql},\n                fecha_ultima_llamada = ${snapFechaUltSql},\n                telefono_preferido = ${snapTelPrefSql},\n                fecha_promesa = ${snapFechaPromSql},\n                monto_promesa = ${snapMontoPromSql},\n                updated_at = NOW()\n            WHERE num_operacion = \u0027${numOperacion}\u0027\n            RETURNING num_operacion, \u0027restored_from_snapshot\u0027 AS status;`;\n  }\n\n  const estado = String($json.estado_flujo || cfg.states.retry || \u0027REINTENTAR\u0027).replace(/\u0027/g, \"\u0027\u0027\");\n  const fechaRaw = $json.reintentar_iso || $json.fecha_reagenda || null;\n  const fechaSql = (fechaRaw == null || String(fechaRaw).trim() === \u0027\u0027)\n    ? `NOW() + INTERVAL \u0027${(cfg.runtime.timeOffsetMinutes||0) + 30} minutes\u0027`\n    : ` \u0027${String(fechaRaw).replace(/\u0027/g, \"\u0027\u0027\")}\u0027::timestamptz `;\n\n  const intentos = Number($json.intentos_llamada || 0);\n  const winTries = Number($json.win_tries || 0);\n  const telIdx = Number($json.telefono_index || 0);\n\n  return `UPDATE ${cfg.db.schema}.${cfg.db.table}\n          SET estado_flujo = \u0027${estado}\u0027,\n              fecha_reagenda = ${fechaSql},\n              intentos_llamada = ${Number.isFinite(intentos) ? intentos : 0},\n              win_tries = ${Number.isFinite(winTries) ? winTries : 0},\n              telefono_index = ${Number.isFinite(telIdx) ? telIdx : 0},\n              updated_at = NOW()\n          WHERE num_operacion = \u0027${numOperacion}\u0027\n          RETURNING num_operacion, \u0027fallback_without_snapshot\u0027 AS status;`;\n})() }}",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.5,
+                      "position":  [
+                                       -40840,
+                                       8000
+                                   ],
+                      "id":  "7cdae43c-7a52-4d43-b214-a4b2ef77dd24",
+                      "name":  "FALLBACK ACTUALIZA ESTADO1",
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "Iz7EEp0WgJu3LXhn",
+                                                           "name":  "Gea_postgress"
+                                                       }
+                                      },
+                      "onError":  "continueRegularOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict",
+                                                                            "version":  2
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "real_flag",
+                                                                                   "leftValue":  "={{ $json.es_llamada_real }}",
+                                                                                   "rightValue":  true,
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "true",
+                                                                                                    "singleValue":  true
+                                                                                                }
+                                                                               },
+                                                                               {
+                                                                                   "id":  "real_oper",
+                                                                                   "leftValue":  "={{ $json.num_operacion }}",
+                                                                                   "rightValue":  "",
+                                                                                   "operator":  {
+                                                                                                    "type":  "string",
+                                                                                                    "operation":  "notEmpty",
+                                                                                                    "singleValue":  true
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.2,
+                      "position":  [
+                                       -39740,
+                                       7560
+                                   ],
+                      "id":  "385b105c-f3bd-49df-971c-1dccfe63d081",
+                      "name":  "ES LLAMADA REAL1"
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict",
+                                                                            "version":  2
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "comp_1",
+                                                                                   "leftValue":  "={{ $json.codigo_respuesta }}",
+                                                                                   "rightValue":  "",
+                                                                                   "operator":  {
+                                                                                                    "type":  "string",
+                                                                                                    "operation":  "notEmpty",
+                                                                                                    "singleValue":  true
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.2,
+                      "position":  [
+                                       -39240,
+                                       7580
+                                   ],
+                      "id":  "11417259-6ddb-41b0-92d5-6956d5381ca0",
+                      "name":  "REPORTE GESTION COMPLETO1"
+                  },
+                  {
+                      "parameters":  {
+                                         "schema":  {
+                                                        "__rl":  true,
+                                                        "mode":  "list",
+                                                        "value":  "public",
+                                                        "cachedResultName":  "public"
+                                                    },
+                                         "table":  {
+                                                       "__rl":  true,
+                                                       "mode":  "list",
+                                                       "value":  "solidario_reporte_gestion",
+                                                       "cachedResultName":  "solidario_reporte_gestion"
+                                                   },
+                                         "columns":  {
+                                                         "mappingMode":  "defineBelow",
+                                                         "value":  {
+                                                                       "num_operacion":  "={{ String($json.num_operacion || \"\") }}",
+                                                                       "user_name_gestion":  "={{ $(\"mapea los campos del cliente1\").item.json.agente_tipo || $json.agente_tipo || $json.user_name_gestion || \u0027COBROS\u0027 }}",
+                                                                       "numero_telefono":  "={{ $json.numero_telefono || $(\"mapea los campos del cliente1\").item.json.numero_telefono || $(\"mapea los campos del cliente1\").item.json.telefono_actual || $(\"mapea los campos del cliente1\").item.json.telefono_preferido || null }}",
+                                                                       "observacion":  "={{ $json.resumen_llamada || $json.motivo || \u0027Llamada no contestada\u0027 }}",
+                                                                       "respuesta":  "={{ $json.codigo_respuesta }}",
+                                                                       "fecha":  "={{ $json.fecha_gestion || $now }}",
+                                                                       "fecha_promesa":  "={{ $json.fecha_promesa || null }}",
+                                                                       "id_llamada":  "={{ $json.id_llamada || null }}",
+                                                                       "hora_gestion":  "={{ $json.hora_gestion || null }}"
+                                                                   },
+                                                         "matchingColumns":  [
+                                                                                 "id"
+                                                                             ],
+                                                         "schema":  [
+                                                                        {
+                                                                            "id":  "id",
+                                                                            "displayName":  "id",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  true,
+                                                                            "display":  true,
+                                                                            "type":  "number",
+                                                                            "canBeUsedToMatch":  true,
+                                                                            "removed":  true
+                                                                        },
+                                                                        {
+                                                                            "id":  "num_operacion",
+                                                                            "displayName":  "num_operacion",
+                                                                            "required":  true,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  true
+                                                                        },
+                                                                        {
+                                                                            "id":  "user_name_gestion",
+                                                                            "displayName":  "user_name_gestion",
+                                                                            "required":  true,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  true
+                                                                        },
+                                                                        {
+                                                                            "id":  "numero_telefono",
+                                                                            "displayName":  "numero_telefono",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  true
+                                                                        },
+                                                                        {
+                                                                            "id":  "observacion",
+                                                                            "displayName":  "observacion",
+                                                                            "required":  true,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  true
+                                                                        },
+                                                                        {
+                                                                            "id":  "respuesta",
+                                                                            "displayName":  "respuesta",
+                                                                            "required":  true,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  true
+                                                                        },
+                                                                        {
+                                                                            "id":  "fecha",
+                                                                            "displayName":  "fecha",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "dateTime",
+                                                                            "canBeUsedToMatch":  true
+                                                                        },
+                                                                        {
+                                                                            "id":  "created_at",
+                                                                            "displayName":  "created_at",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "dateTime",
+                                                                            "canBeUsedToMatch":  true,
+                                                                            "removed":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "updated_at",
+                                                                            "displayName":  "updated_at",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "dateTime",
+                                                                            "canBeUsedToMatch":  true,
+                                                                            "removed":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "id_llamada",
+                                                                            "displayName":  "id_llamada",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  true,
+                                                                            "removed":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "hora_gestion",
+                                                                            "displayName":  "hora_gestion",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  true,
+                                                                            "removed":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "fecha_promesa",
+                                                                            "displayName":  "fecha_promesa",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "dateTime",
+                                                                            "canBeUsedToMatch":  true,
+                                                                            "removed":  false
+                                                                        }
+                                                                    ]
+                                                     },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.5,
+                      "position":  [
+                                       -38960,
+                                       7500
+                                   ],
+                      "id":  "bba66fbb-89e9-4d0a-bb6e-d3b6c68a7a28",
+                      "name":  "GUARDA REPORTE GESTION1",
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "Iz7EEp0WgJu3LXhn",
+                                                           "name":  "Gea_postgress"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+
+                                     },
+                      "id":  "aeb5c05d-e7ab-4283-8c1a-eb091ea8af43",
+                      "name":  "IGNORAR EVENTO NO FINAL",
+                      "type":  "n8n-nodes-base.noOp",
+                      "typeVersion":  1,
+                      "position":  [
+                                       -39460,
+                                       8140
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "return items.map(item =\u003e {\n  const root = item.json || {};\n  const cfg = root.cfg || $items(\u0027CONFIG INICIAL\u0027, 0, 0)[0].json.cfg;\n  const lastAgentType = String(root.agente_tipo || root.metadata?.agente_tipo || \u0027\u0027).toUpperCase();\n  const evtReason = String(root.endedReason || root.event_type || \u0027\u0027).toLowerCase();\n\n  const extracted = {};\n  const setField = (k, v) =\u003e {\n    if (v === undefined || v === null) return;\n    if (typeof v === \u0027string\u0027 \u0026\u0026 v.trim() === \u0027\u0027) return;\n    extracted[k] = v;\n  };\n\n  const mapKey = (rawKey) =\u003e {\n    const k = String(rawKey || \u0027\u0027).toLowerCase().trim().replace(/\\s+/g, \u0027_\u0027);\n    if (k === \u0027nomenclatura\u0027) return \u0027nomenclatura\u0027;\n    if (k === \u0027codigo_respuesta\u0027 || k === \u0027codigo\u0027) return \u0027codigo_respuesta\u0027;\n    if (k === \u0027motivo\u0027) return \u0027motivo\u0027;\n    if (k === \u0027fecha_promesa\u0027) return \u0027fecha_promesa\u0027;\n    if (k === \u0027monto_promesa\u0027) return \u0027monto_promesa\u0027;\n    if (k === \u0027canal_promesa\u0027 || k === \u0027canal\u0027) return \u0027canal\u0027;\n    if (k === \u0027fecha_reprogramada\u0027 || k === \u0027fecha_reagenda\u0027) return \u0027fecha_reagenda\u0027;\n    if (k === \u0027es_familiar\u0027) return \u0027es_familiar\u0027;\n    if (k === \u0027telefono_preferido\u0027) return \u0027telefono_preferido\u0027;\n    if (k === \u0027aceptacion\u0027) return \u0027aceptacion\u0027;\n    if (k === \u0027contactoefectivo\u0027) return \u0027contactoefectivo\u0027;\n    if (k === \u0027contactoalo\u0027) return \u0027contactoalo\u0027;\n    if (k === \u0027sentimiento_cliente\u0027 || k === \u0027sentimiento\u0027) return \u0027sentimiento\u0027;\n    if (k === \u0027resumen_llamada\u0027 || k === \u0027resumen\u0027) return \u0027resumen_llamada\u0027;\n    return null;\n  };\n\n  const processData = (data) =\u003e {\n    if (data == null) return;\n    if (typeof data === \u0027string\u0027) {\n      const s = data.trim();\n      if ((s.startsWith(\u0027{\u0027) \u0026\u0026 s.endsWith(\u0027}\u0027)) || (s.startsWith(\u0027[\u0027) \u0026\u0026 s.endsWith(\u0027]\u0027))) {\n        try { processData(JSON.parse(s)); } catch (_) {}\n      }\n      return;\n    }\n    if (Array.isArray(data)) return data.forEach(processData);\n    if (typeof data !== \u0027object\u0027) return;\n\n    if (Object.prototype.hasOwnProperty.call(data, \u0027name\u0027) \u0026\u0026 Object.prototype.hasOwnProperty.call(data, \u0027result\u0027)) {\n      const mapped = mapKey(data.name);\n      if (mapped) setField(mapped, data.result);\n      processData(data.result);\n    }\n\n    for (const [key, val] of Object.entries(data)) {\n      const mapped = mapKey(key);\n      if (mapped) setField(mapped, val);\n      if (val \u0026\u0026 typeof val === \u0027object\u0027) processData(val);\n      if (typeof val === \u0027string\u0027) {\n        const s = val.trim();\n        if ((s.startsWith(\u0027{\u0027) \u0026\u0026 s.endsWith(\u0027}\u0027)) || (s.startsWith(\u0027[\u0027) \u0026\u0026 s.endsWith(\u0027]\u0027))) {\n          try { processData(JSON.parse(s)); } catch (_) {}\n        }\n      }\n    }\n  };\n\n  processData(root.structuredOutputs);\n  processData(root.artifact?.structuredOutputs);\n  processData(root.message?.artifact?.structuredOutputs);\n  processData(root.analysis?.structuredData);\n  (root.artifact?.messages || []).forEach(m =\u003e {\n    if (m \u0026\u0026 m.role === \u0027tool\u0027) {\n      if (m.name) processData({ name: m.name, result: m.result });\n      processData(m.result);\n    }\n  });\n\n  Object.assign(item.json, extracted);\n\n  const raw = String(item.json.num_operacion ?? item.json.metadata?.num_operacion ?? \u0027\u0027).trim();\n  if (!raw) {\n    item.json.query = \"SELECT \u0027skip_update_sin_num_operacion\u0027 AS status;\";\n    item.json.status_sugerido = item.json.status_sugerido || \u0027IGNORE\u0027;\n    return item;\n  }\n\n  const isFinalEvent = String(item.json.event_type || \u0027\u0027).toLowerCase() === \u0027end-of-call-report\u0027;\n  const idLlamadaRaw = String(item.json.id_llamada || item.json.callId || item.json.id || \u0027\u0027).trim();\n  const hasIdLlamada = idLlamadaRaw !== \u0027\u0027;\n  const hasCierre = !!(item.json.endedAt || item.json.endedReason || item.json.hora_fin_llamada || item.json.ultimo_resultado_llamada || item.json.endedcall);\n  item.json.es_llamada_real = hasIdLlamada \u0026\u0026 hasCierre;\n  if (!isFinalEvent) {\n    item.json.query = \"SELECT \u0027skip_non_final_event\u0027 AS status;\";\n    item.json.status_sugerido = \u0027IGNORE\u0027;\n    return item;\n  }\n\n  if (lastAgentType === \u0027COBROS\u0027 \u0026\u0026 ![\u0027customer-ended-call\u0027, \u0027assistant-ended-call\u0027, \u0027assistant-forwarded-call\u0027, \u0027hangup\u0027].includes(evtReason) \u0026\u0026 evtReason !== \u0027\u0027) {\n    item.json.mapped_by_phonerule = true;\n    item.json.status_sugerido = cfg.states.retry;\n  }\n\n  const isRetryableNom = cfg.retryNomenclaturas.includes(String(item.json.nomenclatura || \u0027\u0027).toUpperCase());\n  const isClosureCode = [\u0027COMPAGO\u0027, \u0027COMPAGOASECORP\u0027].includes(String(item.json.codigo_respuesta || \u0027\u0027));\n  if (!item.json.status_sugerido) {\n    item.json.status_sugerido = (isRetryableNom \u0026\u0026 !isClosureCode) ? cfg.states.retry : \u0027FINAL\u0027;\n  }\n\n  const numOperacion = raw.replace(/\u0027/g, \"\u0027\u0027\");\n  const estadoFinalFlujo = item.json.status_sugerido === \u0027FINAL\u0027 ? cfg.states.done : cfg.states.retry;\n  const fechaReagendaRaw = item.json.reintentar_iso || item.json.fecha_reagenda || null;\n  const fechaReagendaSql = (fechaReagendaRaw == null || String(fechaReagendaRaw).trim() === \u0027\u0027)\n    ? `NOW() + INTERVAL \u0027${(cfg.runtime.timeOffsetMinutes||0) + 30} minutes\u0027`\n    : `\u0027${String(fechaReagendaRaw).replace(/\u0027/g, \"\u0027\u0027\")}\u0027::timestamptz`;\n\n  const fechaGestionRaw = item.json.hora_fin_llamada || item.json.fecha_gestion || item.json.endedAt || item.json.endedcall || null;\n  const fechaGestionSql = (fechaGestionRaw == null || String(fechaGestionRaw).trim() === \u0027\u0027)\n    ? `NOW() + INTERVAL \u0027${cfg.runtime.timeOffsetMinutes||0} minutes\u0027`\n    : `\u0027${String(fechaGestionRaw).replace(/\u0027/g, \"\u0027\u0027\")}\u0027::timestamptz`;\n\n  const telRaw = item.json.numero_telefono || item.json.telefono_preferido || item.json.telefono_actual || null;\n  const telSql = (telRaw == null || String(telRaw).trim() === \u0027\u0027) ? \u0027NULL\u0027 : `\u0027${String(telRaw).replace(/\u0027/g, \"\u0027\u0027\")}\u0027`;\n\n  const contactoAloSi = String(item.json.contactoalo || \u0027\u0027).trim().toLowerCase() === \u0027si\u0027;\n  const estado = contactoAloSi ? cfg.states.done : estadoFinalFlujo;\n  const setFechaReagenda = estado === cfg.states.retry ? fechaReagendaSql : \u0027NULL\u0027;\n  const endRes = String(item.json.endedReason || item.json.event_type || \u0027\u0027).replace(/\u0027/g, \"\u0027\u0027\");\n\n  item.json.query = `UPDATE ${cfg.db.schema}.${cfg.db.table}\n          SET estado_flujo = \u0027${estado}\u0027,\n              fecha_reagenda = ${setFechaReagenda},\n              fecha_ultima_llamada = ${fechaGestionSql},\n              ultimo_resultado_llamada = \u0027${endRes}\u0027,\n              telefono_preferido = CASE WHEN ${contactoAloSi ? \u0027TRUE\u0027 : \u0027FALSE\u0027} AND ${telSql} IS NOT NULL THEN ${telSql} ELSE telefono_preferido END,\n              telefono_index = CASE WHEN ${contactoAloSi ? \u0027TRUE\u0027 : \u0027FALSE\u0027} THEN 0 ELSE telefono_index END,\n              updated_at = NOW()\n          WHERE num_operacion = \u0027${numOperacion}\u0027\n          RETURNING num_operacion, estado_flujo, fecha_reagenda, \u0027updated_by_cierre\u0027 AS status, ${item.json.es_llamada_real ? \u0027TRUE\u0027 : \u0027FALSE\u0027} AS es_llamada_real;`;\n\n  return item;\n});"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -39740,
+                                       7700
+                                   ],
+                      "id":  "gen-sql-cierre",
+                      "name":  "GENERAR QUERY CIERRE"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "={{ $json.query }}"
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.5,
+                      "position":  [
+                                       -39740,
+                                       7880
+                                   ],
+                      "id":  "af7389c2-6b4a-41aa-8a2b-96875296c698",
+                      "name":  "ACTUALIZA REGISTRO MAESTRO1",
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "Iz7EEp0WgJu3LXhn",
+                                                           "name":  "Gea_postgress"
+                                                       }
+                                      },
+                      "onError":  "continueRegularOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict",
+                                                                            "version":  2
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "evt_type",
+                                                                                   "leftValue":  "={{ String($json.event_type || \"\").toLowerCase() }}",
+                                                                                   "rightValue":  "end-of-call-report",
+                                                                                   "operator":  {
+                                                                                                    "type":  "string",
+                                                                                                    "operation":  "equals"
+                                                                                                }
+                                                                               },
+                                                                               {
+                                                                                   "id":  "evt_endedAt",
+                                                                                   "leftValue":  "={{ $json.endedAt || $json.hora_fin_llamada || null }}",
+                                                                                   "rightValue":  "",
+                                                                                   "operator":  {
+                                                                                                    "type":  "string",
+                                                                                                    "operation":  "notEmpty",
+                                                                                                    "singleValue":  true
+                                                                                                }
+                                                                               },
+                                                                               {
+                                                                                   "id":  "evt_endedReason",
+                                                                                   "leftValue":  "={{ $json.endedReason || $json.ultimo_resultado_llamada || null }}",
+                                                                                   "rightValue":  "",
+                                                                                   "operator":  {
+                                                                                                    "type":  "string",
+                                                                                                    "operation":  "notEmpty",
+                                                                                                    "singleValue":  true
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "or"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.2,
+                      "position":  [
+                                       -40860,
+                                       7680
+                                   ],
+                      "id":  "54e7f70a-c2ed-4004-a5b0-22f1145df2c9",
+                      "name":  "ES EVENTO CIERRE VALIDO1"
+                  }
+              ],
+    "pinData":  {
+
+                },
+    "connections":  {
+                        "Webhook Cierre VAPI":  {
+                                                    "main":  [
+                                                                 [
+                                                                     {
+                                                                         "node":  "CONFIG INICIAL",
+                                                                         "type":  "main",
+                                                                         "index":  0
+                                                                     }
+                                                                 ]
+                                                             ]
+                                                },
+                        "CONFIG INICIAL":  {
+                                               "main":  [
+                                                            [
+                                                                {
+                                                                    "node":  "NORMALIZA EVENTO CIERRE VAPI",
+                                                                    "type":  "main",
+                                                                    "index":  0
+                                                                }
+                                                            ]
+                                                        ]
+                                           },
+                        "NORMALIZA EVENTO CIERRE VAPI":  {
+                                                             "main":  [
+                                                                          [
+                                                                              {
+                                                                                  "node":  "ES EVENTO CIERRE VALIDO1",
+                                                                                  "type":  "main",
+                                                                                  "index":  0
+                                                                              }
+                                                                          ]
+                                                                      ]
+                                                         },
+                        "PROCESA LOS NUMEROS Y FORMATEA1":  {
+                                                                "main":  [
+                                                                             [
+                                                                                 {
+                                                                                     "node":  "Establece los valores a guardar1",
+                                                                                     "type":  "main",
+                                                                                     "index":  0
+                                                                                 }
+                                                                             ]
+                                                                         ]
+                                                            },
+                        "Establece los valores a guardar1":  {
+                                                                 "main":  [
+                                                                              [
+                                                                                  {
+                                                                                      "node":  "MAPEO REGLAS DE MARCADO1",
+                                                                                      "type":  "main",
+                                                                                      "index":  0
+                                                                                  }
+                                                                              ],
+                                                                              [
+                                                                                  {
+                                                                                      "node":  "FALLBACK ACTUALIZA ESTADO1",
+                                                                                      "type":  "main",
+                                                                                      "index":  0
+                                                                                  }
+                                                                              ]
+                                                                          ]
+                                                             },
+                        "MAPEO REGLAS DE MARCADO1":  {
+                                                         "main":  [
+                                                                      [
+                                                                          {
+                                                                              "node":  "SI EL ESTADO ES PENDIENTE O REINTENTAR1",
+                                                                              "type":  "main",
+                                                                              "index":  0
+                                                                          }
+                                                                      ],
+                                                                      [
+                                                                          {
+                                                                              "node":  "FALLBACK ACTUALIZA ESTADO1",
+                                                                              "type":  "main",
+                                                                              "index":  0
+                                                                          }
+                                                                      ]
+                                                                  ]
+                                                     },
+                        "SI EL ESTADO ES PENDIENTE O REINTENTAR1":  {
+                                                                        "main":  [
+                                                                                     [
+                                                                                         {
+                                                                                             "node":  "mapea los campos del cliente1",
+                                                                                             "type":  "main",
+                                                                                             "index":  0
+                                                                                         }
+                                                                                     ],
+                                                                                     [
+                                                                                         {
+                                                                                             "node":  "mapea los campos del cliente1",
+                                                                                             "type":  "main",
+                                                                                             "index":  0
+                                                                                         }
+                                                                                     ]
+                                                                                 ]
+                                                                    },
+                        "mapea los campos del cliente1":  {
+                                                              "main":  [
+                                                                           [
+                                                                               {
+                                                                                   "node":  "GENERAR QUERY CIERRE",
+                                                                                   "type":  "main",
+                                                                                   "index":  0
+                                                                               }
+                                                                           ],
+                                                                           [
+                                                                               {
+                                                                                   "node":  "FALLBACK ACTUALIZA ESTADO1",
+                                                                                   "type":  "main",
+                                                                                   "index":  0
+                                                                               }
+                                                                           ]
+                                                                       ]
+                                                          },
+                        "ES LLAMADA REAL1":  {
+                                                 "main":  [
+                                                              [
+                                                                  {
+                                                                      "node":  "GUARDAR REPORTE",
+                                                                      "type":  "main",
+                                                                      "index":  0
+                                                                  }
+                                                              ],
+                                                              [
+                                                                  {
+                                                                      "node":  "IGNORAR EVENTO NO FINAL",
+                                                                      "type":  "main",
+                                                                      "index":  0
+                                                                  }
+                                                              ]
+                                                          ]
+                                             },
+                        "GUARDAR REPORTE":  {
+                                                "main":  [
+                                                             [
+                                                                 {
+                                                                     "node":  "REPORTE GESTION COMPLETO1",
+                                                                     "type":  "main",
+                                                                     "index":  0
+                                                                 }
+                                                             ],
+                                                             [
+                                                                 {
+                                                                     "node":  "FALLBACK ACTUALIZA ESTADO1",
+                                                                     "type":  "main",
+                                                                     "index":  0
+                                                                 }
+                                                             ]
+                                                         ]
+                                            },
+                        "REPORTE GESTION COMPLETO1":  {
+                                                          "main":  [
+                                                                       [
+                                                                           {
+                                                                               "node":  "GUARDA REPORTE GESTION1",
+                                                                               "type":  "main",
+                                                                               "index":  0
+                                                                           }
+                                                                       ]
+                                                                   ]
+                                                      },
+                        "GENERAR QUERY CIERRE":  {
+                                                     "main":  [
+                                                                  [
+                                                                      {
+                                                                          "node":  "ACTUALIZA REGISTRO MAESTRO1",
+                                                                          "type":  "main",
+                                                                          "index":  0
+                                                                      },
+                                                                      {
+                                                                          "node":  "ES LLAMADA REAL1",
+                                                                          "type":  "main",
+                                                                          "index":  0
+                                                                      }
+                                                                  ]
+                                                              ]
+                                                 },
+                        "ACTUALIZA REGISTRO MAESTRO1":  {
+                                                            "main":  [
+
+                                                                     ]
+                                                        },
+                        "ES EVENTO CIERRE VALIDO1":  {
+                                                         "main":  [
+                                                                      [
+                                                                          {
+                                                                              "node":  "PROCESA LOS NUMEROS Y FORMATEA1",
+                                                                              "type":  "main",
+                                                                              "index":  0
+                                                                          }
+                                                                      ],
+                                                                      [
+                                                                          {
+                                                                              "node":  "IGNORAR EVENTO NO FINAL",
+                                                                              "type":  "main",
+                                                                              "index":  0
+                                                                          }
+                                                                      ]
+                                                                  ]
+                                                     }
+                    },
+    "active":  false,
+    "settings":  {
+                     "executionOrder":  "v1"
+                 },
+    "versionId":  "8a628361-ee12-45b3-a0db-76a28a789df5",
+    "meta":  {
+                 "instanceId":  "915a7f7568d882a64f47657d6f3fab09c88f51183cb22a1bfa48ee39cc137bcd"
+             },
+    "id":  "V8Rw59EQPwMcCYq1",
+    "tags":  [
+
+             ]
+}

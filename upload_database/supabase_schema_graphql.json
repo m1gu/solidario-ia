@@ -1,0 +1,1280 @@
+﻿[
+    {
+        "table":  "agendamientos",
+        "columns":  [
+                        {
+                            "column":  "nodeId",
+                            "type":  "ID!"
+                        },
+                        {
+                            "column":  "id_agendamiento",
+                            "type":  "Int!"
+                        },
+                        {
+                            "column":  "id_campania",
+                            "type":  "String!"
+                        },
+                        {
+                            "column":  "id_registro",
+                            "type":  "Int"
+                        },
+                        {
+                            "column":  "agendado_para",
+                            "type":  "Datetime!"
+                        },
+                        {
+                            "column":  "ventana_minutos",
+                            "type":  "Int!"
+                        },
+                        {
+                            "column":  "status",
+                            "type":  "String!"
+                        },
+                        {
+                            "column":  "intentos",
+                            "type":  "Int!"
+                        },
+                        {
+                            "column":  "proximo_intento",
+                            "type":  "Datetime"
+                        },
+                        {
+                            "column":  "vapi_call_id",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "origen",
+                            "type":  "String!"
+                        },
+                        {
+                            "column":  "creado_at",
+                            "type":  "Datetime!"
+                        },
+                        {
+                            "column":  "actualizado_at",
+                            "type":  "Datetime!"
+                        },
+                        {
+                            "column":  "campania_config",
+                            "type":  "campania_config!"
+                        },
+                        {
+                            "column":  "leads_v2Collection",
+                            "type":  "leads_v2Connection"
+                        }
+                    ]
+    },
+    {
+        "table":  "bandera_calendario",
+        "columns":  [
+                        {
+                            "column":  "nodeId",
+                            "type":  "ID!"
+                        },
+                        {
+                            "column":  "id",
+                            "type":  "Int!"
+                        },
+                        {
+                            "column":  "fecha",
+                            "type":  "Date!"
+                        },
+                        {
+                            "column":  "id_bandera",
+                            "type":  "String!"
+                        },
+                        {
+                            "column":  "procesada",
+                            "type":  "Boolean!"
+                        },
+                        {
+                            "column":  "procesada_at",
+                            "type":  "Datetime"
+                        },
+                        {
+                            "column":  "banderas",
+                            "type":  "banderas!"
+                        }
+                    ]
+    },
+    {
+        "table":  "banderas",
+        "columns":  [
+                        {
+                            "column":  "nodeId",
+                            "type":  "ID!"
+                        },
+                        {
+                            "column":  "id_bandera",
+                            "type":  "String!"
+                        },
+                        {
+                            "column":  "descripcion",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "activa",
+                            "type":  "Boolean!"
+                        },
+                        {
+                            "column":  "bandera_calendarioCollection",
+                            "type":  "bandera_calendarioConnection"
+                        }
+                    ]
+    },
+    {
+        "table":  "bb_visa_parciales",
+        "columns":  [
+                        {
+                            "column":  "nodeId",
+                            "type":  "ID!"
+                        },
+                        {
+                            "column":  "id",
+                            "type":  "BigInt!"
+                        },
+                        {
+                            "column":  "cedula",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "nombre",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "nombre_completo",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "telefono",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "monto_pago_minimo",
+                            "type":  "BigFloat"
+                        },
+                        {
+                            "column":  "fecha_vencimiento",
+                            "type":  "Date"
+                        },
+                        {
+                            "column":  "fecha_maxima_promesa_pago",
+                            "type":  "Date"
+                        },
+                        {
+                            "column":  "tipo_tc",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "tipo_riesgo",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "created_at",
+                            "type":  "Datetime!"
+                        },
+                        {
+                            "column":  "status_flujo",
+                            "type":  "String!"
+                        },
+                        {
+                            "column":  "reintentar_iso",
+                            "type":  "Datetime"
+                        },
+                        {
+                            "column":  "intentos",
+                            "type":  "Int!"
+                        },
+                        {
+                            "column":  "prioridad_actual",
+                            "type":  "Int!"
+                        },
+                        {
+                            "column":  "picked_at",
+                            "type":  "Datetime"
+                        },
+                        {
+                            "column":  "win_stamp",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "win_tries",
+                            "type":  "Int!"
+                        },
+                        {
+                            "column":  "telefono_index",
+                            "type":  "Int!"
+                        }
+                    ]
+    },
+    {
+        "table":  "campania_config",
+        "columns":  [
+                        {
+                            "column":  "nodeId",
+                            "type":  "ID!"
+                        },
+                        {
+                            "column":  "id_campania",
+                            "type":  "String!"
+                        },
+                        {
+                            "column":  "max_concurrentes",
+                            "type":  "Int!"
+                        },
+                        {
+                            "column":  "slot_duracion_seg",
+                            "type":  "Int!"
+                        },
+                        {
+                            "column":  "ultimo_pick_at",
+                            "type":  "Datetime"
+                        },
+                        {
+                            "column":  "activa",
+                            "type":  "Boolean!"
+                        },
+                        {
+                            "column":  "agendamientosCollection",
+                            "type":  "agendamientosConnection"
+                        }
+                    ]
+    },
+    {
+        "table":  "clientes",
+        "columns":  [
+                        {
+                            "column":  "nodeId",
+                            "type":  "ID!"
+                        },
+                        {
+                            "column":  "id",
+                            "type":  "UUID!"
+                        },
+                        {
+                            "column":  "uid",
+                            "type":  "UUID"
+                        },
+                        {
+                            "column":  "email",
+                            "type":  "String!"
+                        },
+                        {
+                            "column":  "banco",
+                            "type":  "String!"
+                        },
+                        {
+                            "column":  "creado_en",
+                            "type":  "Datetime"
+                        }
+                    ]
+    },
+    {
+        "table":  "dispatcher_estado",
+        "columns":  [
+                        {
+                            "column":  "nodeId",
+                            "type":  "ID!"
+                        },
+                        {
+                            "column":  "id",
+                            "type":  "Int!"
+                        },
+                        {
+                            "column":  "campania_activa",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "slot_expira_at",
+                            "type":  "Datetime"
+                        },
+                        {
+                            "column":  "max_slots_global",
+                            "type":  "Int!"
+                        },
+                        {
+                            "column":  "vapi_remaining_slots",
+                            "type":  "Int"
+                        },
+                        {
+                            "column":  "vapi_concurrency_limit",
+                            "type":  "Int"
+                        },
+                        {
+                            "column":  "vapi_ultima_lectura_at",
+                            "type":  "Datetime"
+                        }
+                    ]
+    },
+    {
+        "table":  "dispatcher_logs",
+        "columns":  [
+                        {
+                            "column":  "nodeId",
+                            "type":  "ID!"
+                        },
+                        {
+                            "column":  "id",
+                            "type":  "Int!"
+                        },
+                        {
+                            "column":  "evento_at",
+                            "type":  "Datetime!"
+                        },
+                        {
+                            "column":  "origen",
+                            "type":  "String!"
+                        },
+                        {
+                            "column":  "tipo",
+                            "type":  "String!"
+                        },
+                        {
+                            "column":  "id_campania",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "id_registro",
+                            "type":  "Int"
+                        },
+                        {
+                            "column":  "vapi_call_id",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "usuario_telegram",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "detalle",
+                            "type":  "JSON"
+                        }
+                    ]
+    },
+    {
+        "table":  "ecuagiros_bb_voicebot",
+        "columns":  [
+                        {
+                            "column":  "nodeId",
+                            "type":  "ID!"
+                        },
+                        {
+                            "column":  "codigo_giro",
+                            "type":  "String!"
+                        },
+                        {
+                            "column":  "secuencia_giro",
+                            "type":  "String!"
+                        },
+                        {
+                            "column":  "p_nombre_beneficiario",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "s_nombre_beneficiario",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "p_apellido_beneficiario",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "s_apellido_beneficiario",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "ciudad_beneficiario",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "codigo_direccion",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "direccion",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "telefono_beneficiario",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "mensaje_1",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "telefono_2_beneficiario",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "mensaje_2",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "telefono_3_beneficiario",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "mensaje_3",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "codigo_agente",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "agente_pagador",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "codigo_forma_pago",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "estado_notificacion",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "fecha_reagenda",
+                            "type":  "Datetime"
+                        },
+                        {
+                            "column":  "fecha_ingreso",
+                            "type":  "Datetime!"
+                        },
+                        {
+                            "column":  "estado_gestion",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "dia",
+                            "type":  "String"
+                        }
+                    ]
+    },
+    {
+        "table":  "leads_v2",
+        "columns":  [
+                        {
+                            "column":  "nodeId",
+                            "type":  "ID!"
+                        },
+                        {
+                            "column":  "id_registro",
+                            "type":  "Int!"
+                        },
+                        {
+                            "column":  "id_campania",
+                            "type":  "String!"
+                        },
+                        {
+                            "column":  "cedula",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "nuic",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "nombre_cliente",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "segmento",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "ciudad",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "email",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "phones_raw",
+                            "type":  "JSON"
+                        },
+                        {
+                            "column":  "ph_celular",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "ph_celular2",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "ph_residencial",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "ph_residencial2",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "ph_comercial",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "ph_telefono4",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "status_flujo",
+                            "type":  "String!"
+                        },
+                        {
+                            "column":  "reintentar_iso",
+                            "type":  "Datetime"
+                        },
+                        {
+                            "column":  "prioridad_actual",
+                            "type":  "Int!"
+                        },
+                        {
+                            "column":  "intentos_llamada",
+                            "type":  "Int!"
+                        },
+                        {
+                            "column":  "last_try_ymd",
+                            "type":  "Date"
+                        },
+                        {
+                            "column":  "picked_at",
+                            "type":  "Datetime"
+                        },
+                        {
+                            "column":  "win_stamp",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "win_tries",
+                            "type":  "Int"
+                        },
+                        {
+                            "column":  "nomenclatura_ultima",
+                            "type":  "Int"
+                        },
+                        {
+                            "column":  "motivo_ultimo",
+                            "type":  "Int"
+                        },
+                        {
+                            "column":  "resumen_llamada",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "sentimiento",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "transcripcion",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "duracion_segundos",
+                            "type":  "Int"
+                        },
+                        {
+                            "column":  "observaciones_internas",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "system_payload",
+                            "type":  "JSON"
+                        },
+                        {
+                            "column":  "telefono_actual",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "telefono_field",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "telefono_index",
+                            "type":  "Int"
+                        },
+                        {
+                            "column":  "win_id",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "phones_allowed",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "created_at",
+                            "type":  "Datetime!"
+                        },
+                        {
+                            "column":  "updated_at",
+                            "type":  "Datetime!"
+                        },
+                        {
+                            "column":  "last_outcome_at",
+                            "type":  "Datetime"
+                        },
+                        {
+                            "column":  "bandera",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "consumo",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "horareagenda",
+                            "type":  "Datetime"
+                        },
+                        {
+                            "column":  "id_altiva",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "vapi_call_id",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "vapi_intentos",
+                            "type":  "Int!"
+                        },
+                        {
+                            "column":  "es_agendamiento",
+                            "type":  "Boolean!"
+                        },
+                        {
+                            "column":  "id_agendamiento",
+                            "type":  "Int"
+                        },
+                        {
+                            "column":  "agendado_para",
+                            "type":  "Datetime"
+                        },
+                        {
+                            "column":  "agendamientos",
+                            "type":  "agendamientos"
+                        }
+                    ]
+    },
+    {
+        "table":  "leads_v3",
+        "columns":  [
+                        {
+                            "column":  "nodeId",
+                            "type":  "ID!"
+                        },
+                        {
+                            "column":  "id_registro",
+                            "type":  "String!"
+                        },
+                        {
+                            "column":  "id_campania",
+                            "type":  "String!"
+                        },
+                        {
+                            "column":  "cedula",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "nuic",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "nombre_cliente",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "segmento",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "ciudad",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "email",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "phones_raw",
+                            "type":  "JSON"
+                        },
+                        {
+                            "column":  "ph_celular",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "ph_celular2",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "ph_residencial",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "ph_residencial2",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "ph_comercial",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "ph_telefono4",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "status_flujo",
+                            "type":  "String!"
+                        },
+                        {
+                            "column":  "reintentar_iso",
+                            "type":  "Datetime"
+                        },
+                        {
+                            "column":  "prioridad_actual",
+                            "type":  "Int!"
+                        },
+                        {
+                            "column":  "intentos_llamada",
+                            "type":  "Int!"
+                        },
+                        {
+                            "column":  "last_try_ymd",
+                            "type":  "Date"
+                        },
+                        {
+                            "column":  "picked_at",
+                            "type":  "Datetime"
+                        },
+                        {
+                            "column":  "win_stamp",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "win_tries",
+                            "type":  "Int"
+                        },
+                        {
+                            "column":  "nomenclatura_ultima",
+                            "type":  "Int"
+                        },
+                        {
+                            "column":  "motivo_ultimo",
+                            "type":  "Int"
+                        },
+                        {
+                            "column":  "resumen_llamada",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "sentimiento",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "transcripcion",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "duracion_segundos",
+                            "type":  "Int"
+                        },
+                        {
+                            "column":  "observaciones_internas",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "system_payload",
+                            "type":  "JSON"
+                        },
+                        {
+                            "column":  "telefono_actual",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "telefono_field",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "telefono_index",
+                            "type":  "Int"
+                        },
+                        {
+                            "column":  "win_id",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "phones_allowed",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "created_at",
+                            "type":  "Datetime!"
+                        },
+                        {
+                            "column":  "updated_at",
+                            "type":  "Datetime!"
+                        },
+                        {
+                            "column":  "last_outcome_at",
+                            "type":  "Datetime"
+                        },
+                        {
+                            "column":  "bandera_dinomi",
+                            "type":  "String"
+                        }
+                    ]
+    },
+    {
+        "table":  "reporte_llamadas",
+        "columns":  [
+                        {
+                            "column":  "nodeId",
+                            "type":  "ID!"
+                        },
+                        {
+                            "column":  "id",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "fecha_llamada",
+                            "type":  "Datetime"
+                        },
+                        {
+                            "column":  "descripcion_agente",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "ciudad",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "codigo_forma_pago",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "codigo_giro",
+                            "type":  "BigInt"
+                        },
+                        {
+                            "column":  "agente",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "telefono_contacto",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "first_name_cliente",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "last_name_cliente",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "call_result",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "status",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "estado_gestion",
+                            "type":  "estado_gestion_enum"
+                        },
+                        {
+                            "column":  "quien_contesto",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "duracion",
+                            "type":  "Int"
+                        },
+                        {
+                            "column":  "recall_date",
+                            "type":  "Date"
+                        },
+                        {
+                            "column":  "call_key",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "created_at",
+                            "type":  "Datetime"
+                        },
+                        {
+                            "column":  "sentimiento",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "id_reporte",
+                            "type":  "Int!"
+                        },
+                        {
+                            "column":  "transcripcion",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "agente_pagador",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "codigo_agente_pagador",
+                            "type":  "String"
+                        }
+                    ]
+    },
+    {
+        "table":  "solidario_preventiva",
+        "columns":  [
+                        {
+                            "column":  "nodeId",
+                            "type":  "ID!"
+                        },
+                        {
+                            "column":  "num_operacion",
+                            "type":  "BigInt!"
+                        },
+                        {
+                            "column":  "cedula",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "nombre",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "apellido",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "telefono",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "valor",
+                            "type":  "BigFloat"
+                        },
+                        {
+                            "column":  "fecha_maxima",
+                            "type":  "Date"
+                        },
+                        {
+                            "column":  "producto",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "observacion",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "nomenclatura",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "codigo_respuesta",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "motivo",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "fecha_gestion",
+                            "type":  "Datetime"
+                        },
+                        {
+                            "column":  "sentimiento",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "transcripcion_llamada",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "resumen_llamada",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "link_audio_vapi",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "id_llamada",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "estado_flujo",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "fecha_reagenda",
+                            "type":  "Datetime"
+                        },
+                        {
+                            "column":  "intentos_llamada",
+                            "type":  "Int!"
+                        },
+                        {
+                            "column":  "ultimo_resultado_llamada",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "fecha_ultima_llamada",
+                            "type":  "Datetime"
+                        },
+                        {
+                            "column":  "win_stamp",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "win_tries",
+                            "type":  "Int!"
+                        },
+                        {
+                            "column":  "created_at",
+                            "type":  "Datetime!"
+                        },
+                        {
+                            "column":  "updated_at",
+                            "type":  "Datetime!"
+                        },
+                        {
+                            "column":  "telefono_index",
+                            "type":  "Int!"
+                        },
+                        {
+                            "column":  "cedente",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "canal",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "fecha_promesa",
+                            "type":  "Date"
+                        },
+                        {
+                            "column":  "monto_promesa",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "fecha_reprogramada",
+                            "type":  "Datetime"
+                        },
+                        {
+                            "column":  "es_familiar",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "telefono_preferido",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "duracion_llamada",
+                            "type":  "Int"
+                        },
+                        {
+                            "column":  "aceptacion",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "hora_gestion",
+                            "type":  "String"
+                        }
+                    ]
+    },
+    {
+        "table":  "utpl_atraccion_voicebot",
+        "columns":  [
+                        {
+                            "column":  "nodeId",
+                            "type":  "ID!"
+                        },
+                        {
+                            "column":  "id",
+                            "type":  "BigInt!"
+                        },
+                        {
+                            "column":  "codigo_unico",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "nuic",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "cedula",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "nombre",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "apellido",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "telefono",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "email",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "fecha_gestion",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "observaciones",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "tipificacion",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "subtipificacion",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "llamada_id",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "grabacion_url",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "intentos",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "estado_academico",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "modalidad",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "nombres_original",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "nombre_producto",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "origen",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "provincia_col107",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "subestado_academico",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "telefono_personal",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "telefono_utpl",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "status_flujo",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "reintentar_iso",
+                            "type":  "Datetime"
+                        },
+                        {
+                            "column":  "intentos_llamada",
+                            "type":  "Int"
+                        },
+                        {
+                            "column":  "win_stamp",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "win_tries",
+                            "type":  "Int"
+                        },
+                        {
+                            "column":  "telefono_index",
+                            "type":  "Int"
+                        },
+                        {
+                            "column":  "ultimo_resultado",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "fecha_ultima_llamada",
+                            "type":  "Datetime"
+                        },
+                        {
+                            "column":  "created_at",
+                            "type":  "Datetime"
+                        },
+                        {
+                            "column":  "nombre_completo",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "tel3",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "tel1",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "tel2",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "id_nomenclatura",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "id_motivo",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "transcripcion_llamada",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "picked_at",
+                            "type":  "Datetime"
+                        },
+                        {
+                            "column":  "prioridad_actual",
+                            "type":  "Int"
+                        },
+                        {
+                            "column":  "transferido",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "resumen",
+                            "type":  "String"
+                        },
+                        {
+                            "column":  "sentimiento",
+                            "type":  "String"
+                        }
+                    ]
+    }
+]

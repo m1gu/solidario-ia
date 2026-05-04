@@ -1,0 +1,343 @@
+﻿{
+    "name":  "Solidario-ReporteProductividad",
+    "nodes":  [
+                  {
+                      "parameters":  {
+                                         "rule":  {
+                                                      "interval":  [
+                                                                       {
+                                                                           "field":  "cronExpression",
+                                                                           "expression":  "0 21 * * 1-6"
+                                                                       }
+                                                                   ]
+                                                  }
+                                     },
+                      "type":  "n8n-nodes-base.scheduleTrigger",
+                      "typeVersion":  1.2,
+                      "position":  [
+                                       40,
+                                       120
+                                   ],
+                      "id":  "4c091f05-a5dd-4be1-a62a-0432c9fe19bb",
+                      "name":  "Cron Productividad 21h (L-S)"
+                  },
+                  {
+                      "parameters":  {
+
+                                     },
+                      "type":  "n8n-nodes-base.manualTrigger",
+                      "typeVersion":  1,
+                      "position":  [
+                                       100,
+                                       420
+                                   ],
+                      "id":  "1a83404c-03a9-480b-b94a-678d7725c2ef",
+                      "name":  "Manual Trigger (Pruebas)"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "return items.map((item) =\u003e {\n  const tz = \u0027America/Guayaquil\u0027;\n  const nowLocal = new Date(new Date().toLocaleString(\u0027en-US\u0027, { timeZone: tz }));\n  const yyyy = nowLocal.getFullYear();\n  const mm = String(nowLocal.getMonth() + 1).padStart(2, \u00270\u0027);\n  const dd = String(nowLocal.getDate()).padStart(2, \u00270\u0027);\n  const forDate = `${yyyy}-${mm}-${dd}`;\n  const yyyymmdd = `${yyyy}${mm}${dd}`;\n\n  item.json.cfg = {\n    report: {\n      tz,\n      forDate,\n      yyyymmdd,\n      exportBasePath: \u0027./public_html/BANCO_SOLIDARIO\u0027,\n      exportFolderPath: `./public_html/BANCO_SOLIDARIO/${yyyymmdd}`,\n      cedente: \u0027BANCO SOLIDARIO\u0027,\n      tipoCartera: \u0027Administrativo\u0027,\n      canalGestion: \u0027VOZ IA\u0027,\n      gestoresAsignados: \u00271\u0027,\n      diasLaborados: \u00271\u0027,\n      observaciones: \u0027 \u0027\n    }\n  };\n\n  return item;\n});"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       300,
+                                       120
+                                   ],
+                      "id":  "8e9b84ca-3b26-4f79-b065-3df8ac18f53b",
+                      "name":  "CONFIG INICIAL"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "={{ (() =\u003e {\n  const cfg = $items(\u0027CONFIG INICIAL\u0027, 0, 0)[0].json.cfg;\n  const tz = String(cfg.report.tz || \u0027America/Guayaquil\u0027).replace(/\u0027/g, \"\u0027\u0027\");\n  const forDate = String(cfg.report.forDate).replace(/\u0027/g, \"\u0027\u0027\");\n  const cedente = String(cfg.report.cedente).replace(/\u0027/g, \"\u0027\u0027\");\n  const tipoCartera = String(cfg.report.tipoCartera).replace(/\u0027/g, \"\u0027\u0027\");\n  const canal = String(cfg.report.canalGestion).replace(/\u0027/g, \"\u0027\u0027\");\n  const gestores = String(cfg.report.gestoresAsignados).replace(/\u0027/g, \"\u0027\u0027\");\n  const diasLab = String(cfg.report.diasLaborados).replace(/\u0027/g, \"\u0027\u0027\");\n  const obs = String(cfg.report.observaciones).replace(/\u0027/g, \"\u0027\u0027\");\n\n  return `WITH params AS (\n    SELECT \u0027${forDate}\u0027::date AS fecha_local, \u0027${tz}\u0027::text AS tz\n  ),\n  base AS (\n    SELECT\n      p.fecha_local AS fecha,\n      CASE\n        WHEN btrim(coalesce(r.dias_retraso,\u0027\u0027)) LIKE \u0027-%\u0027 THEN \u0027preventiva\u0027\n        WHEN btrim(coalesce(r.dias_retraso,\u0027\u0027)) LIKE \u0027+%\u0027 THEN \u0027flujo/mora\u0027\n        WHEN r.fecha_vencimiento IS NOT NULL AND (l.fecha_gestion AT TIME ZONE p.tz)::date \u003c= r.fecha_vencimiento THEN \u0027preventiva\u0027\n        ELSE \u0027flujo/mora\u0027\n      END AS estrategia_o_equipo,\n      CASE\n        WHEN upper(btrim(coalesce(r.producto,\u0027\u0027))) = \u0027UNICREDITO\u0027 THEN \u0027UNICREDITO\u0027\n        ELSE \u0027CASAS COMERCIALES\u0027\n      END AS producto_agrupado,\n      l.cedula,\n      l.contactoalo,\n      l.contactoefectivo,\n      l.aceptacion,\n      l.hora_inicio_llamada,\n      l.hora_fin_llamada,\n      l.fecha_gestion\n    FROM public.solidario_llamadas l\n    LEFT JOIN public.solidario_registros r ON r.num_operacion = l.num_operacion\n    CROSS JOIN params p\n    WHERE l.fecha_gestion \u003e= (p.fecha_local::timestamp AT TIME ZONE p.tz)\n      AND l.fecha_gestion \u003c ((p.fecha_local + 1)::timestamp AT TIME ZONE p.tz)\n  ),\n  grouped AS (\n    SELECT\n      fecha,\n      estrategia_o_equipo,\n      producto_agrupado AS producto,\n      count(*)::int AS marcaciones_realizadas,\n      count(*) FILTER (WHERE coalesce(contactoalo,\u0027\u0027)=\u0027Si\u0027)::int AS gestiones_realizadas,\n      count(*) FILTER (WHERE coalesce(contactoefectivo,\u0027\u0027)=\u0027Si\u0027)::int AS contactos_directos,\n      count(*) FILTER (WHERE coalesce(aceptacion,\u0027\u0027)=\u0027Si\u0027)::int AS compromisos_de_pago_generados,\n      count(DISTINCT cedula) FILTER (WHERE cedula IS NOT NULL AND btrim(cedula) \u003c\u003e \u0027\u0027)::int AS numero_clientes_marcados,\n      count(DISTINCT cedula) FILTER (WHERE coalesce(contactoalo,\u0027\u0027)=\u0027Si\u0027 AND cedula IS NOT NULL AND btrim(cedula) \u003c\u003e \u0027\u0027)::int AS clientes_gestionados,\n      round(coalesce(extract(epoch FROM (max(hora_fin_llamada) - min(hora_inicio_llamada))) / 3600.0, 0)::numeric, 2) AS horas_laborables\n    FROM base\n    GROUP BY fecha, estrategia_o_equipo, producto_agrupado\n  ),\n  gaps AS (\n    SELECT\n      b.fecha,\n      b.estrategia_o_equipo,\n      b.producto_agrupado AS producto,\n      extract(epoch FROM (b.hora_inicio_llamada - lag(b.hora_fin_llamada) OVER (\n        PARTITION BY b.fecha, b.estrategia_o_equipo, b.producto_agrupado\n        ORDER BY coalesce(b.hora_inicio_llamada, b.fecha_gestion)\n      ))) AS gap_seconds\n    FROM base b\n    WHERE b.hora_inicio_llamada IS NOT NULL\n  ),\n  gap_agg AS (\n    SELECT\n      fecha,\n      estrategia_o_equipo,\n      producto,\n      avg(gap_seconds) FILTER (WHERE gap_seconds IS NOT NULL AND gap_seconds \u003e= 0) AS avg_gap_seconds\n    FROM gaps\n    GROUP BY fecha, estrategia_o_equipo, producto\n  )\n  INSERT INTO public.solidario_reporte_productividad (\n    fecha,\n    cedente,\n    tipo_cartera,\n    producto,\n    estrategia_o_equipo,\n    canal_gestion,\n    gestores_asignados,\n    horas_laborables,\n    dias_laborados,\n    observaciones,\n    marcaciones_realizadas,\n    gestiones_realizadas,\n    contactos_directos,\n    compromisos_de_pago_generados,\n    compromisos_de_pago_cumplidos,\n    numero_clientes_marcados,\n    clientes_gestionados,\n    numero_clientes_recuperados,\n    tiempo_entre_llamadas\n  )\n  SELECT\n    g.fecha,\n    \u0027${cedente}\u0027,\n    \u0027${tipoCartera}\u0027,\n    g.producto,\n    g.estrategia_o_equipo,\n    \u0027${canal}\u0027,\n    \u0027${gestores}\u0027,\n    coalesce(g.horas_laborables, 0),\n    \u0027${diasLab}\u0027,\n    \u0027${obs}\u0027,\n    g.marcaciones_realizadas,\n    g.gestiones_realizadas,\n    g.contactos_directos,\n    g.compromisos_de_pago_generados,\n    0,\n    g.numero_clientes_marcados,\n    g.clientes_gestionados,\n    0,\n    CASE\n      WHEN ga.avg_gap_seconds IS NULL THEN NULL\n      ELSE lpad(floor(ga.avg_gap_seconds / 60)::text, 2, \u00270\u0027) || \u0027:\u0027 || lpad((round(ga.avg_gap_seconds)::int % 60)::text, 2, \u00270\u0027)\n    END AS tiempo_entre_llamadas\n  FROM grouped g\n  LEFT JOIN gap_agg ga\n    ON ga.fecha = g.fecha\n   AND ga.estrategia_o_equipo = g.estrategia_o_equipo\n   AND ga.producto = g.producto\n  ON CONFLICT (fecha, estrategia_o_equipo, producto)\n  DO UPDATE SET\n    cedente = EXCLUDED.cedente,\n    tipo_cartera = EXCLUDED.tipo_cartera,\n    canal_gestion = EXCLUDED.canal_gestion,\n    gestores_asignados = EXCLUDED.gestores_asignados,\n    horas_laborables = EXCLUDED.horas_laborables,\n    dias_laborados = EXCLUDED.dias_laborados,\n    observaciones = EXCLUDED.observaciones,\n    marcaciones_realizadas = EXCLUDED.marcaciones_realizadas,\n    gestiones_realizadas = EXCLUDED.gestiones_realizadas,\n    contactos_directos = EXCLUDED.contactos_directos,\n    compromisos_de_pago_generados = EXCLUDED.compromisos_de_pago_generados,\n    compromisos_de_pago_cumplidos = EXCLUDED.compromisos_de_pago_cumplidos,\n    numero_clientes_marcados = EXCLUDED.numero_clientes_marcados,\n    clientes_gestionados = EXCLUDED.clientes_gestionados,\n    numero_clientes_recuperados = EXCLUDED.numero_clientes_recuperados,\n    tiempo_entre_llamadas = EXCLUDED.tiempo_entre_llamadas,\n    updated_at = now()\n  RETURNING fecha, estrategia_o_equipo, producto, marcaciones_realizadas, gestiones_realizadas, contactos_directos, compromisos_de_pago_generados;`;\n})() }}",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.5,
+                      "position":  [
+                                       580,
+                                       120
+                                   ],
+                      "id":  "9fc17c02-f63a-40eb-9a42-941dfe1f7940",
+                      "name":  "UPSERT PRODUCTIVIDAD (DIA)",
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "Iz7EEp0WgJu3LXhn",
+                                                           "name":  "Gea_postgress"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "={{ (() =\u003e {\n  const cfg = $items(\u0027CONFIG INICIAL\u0027, 0, 0)[0].json.cfg;\n  const forDate = String(cfg.report.forDate).replace(/\u0027/g, \"\u0027\u0027\");\n  return `SELECT\n    to_char(fecha::date, \u0027DD-MM-YYYY\u0027) AS fecha,\n    cedente,\n    tipo_cartera,\n    producto,\n    estrategia_o_equipo,\n    canal_gestion,\n    gestores_asignados,\n    horas_laborables,\n    dias_laborados,\n    observaciones,\n    marcaciones_realizadas,\n    gestiones_realizadas,\n    contactos_directos,\n    compromisos_de_pago_generados,\n    compromisos_de_pago_cumplidos,\n    numero_clientes_marcados,\n    clientes_gestionados,\n    numero_clientes_recuperados,\n    tiempo_entre_llamadas\n  FROM public.solidario_reporte_productividad\n  WHERE fecha=\u0027${forDate}\u0027::date\n  ORDER BY estrategia_o_equipo, producto;`;\n})() }}",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.5,
+                      "position":  [
+                                       860,
+                                       120
+                                   ],
+                      "id":  "b294dfc9-1705-4be8-8f79-5fe31b6b743e",
+                      "name":  "CONSULTA PRODUCTIVIDAD (DIA)",
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "Iz7EEp0WgJu3LXhn",
+                                                           "name":  "Gea_postgress"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const cfg = $items(\u0027CONFIG INICIAL\u0027, 0, 0)[0].json.cfg;\nconst dd = cfg.report.yyyymmdd;\n\nconst safeCount = (nodeName) =\u003e {\n  try {\n    return $items(nodeName, 0, 0).length;\n  } catch (e) {\n    return 0;\n  }\n};\n\nconst prodRows = safeCount(\u0027CONSULTA PRODUCTIVIDAD (DIA)\u0027);\nconst gestRows = safeCount(\u0027CONSULTA GESTION (DIA)\u0027);\n\nreturn [{\n  json: {\n    status: \u0027ok\u0027,\n    fecha_reporte: cfg.report.forDate,\n    carpeta_destino: cfg.report.exportFolderPath,\n    archivo_productividad: `reporte_productividad_${dd}.xlsx`,\n    archivo_gestion: `reporte_gestion_${dd}.xlsx`,\n    filas_productividad: prodRows,\n    filas_gestion: gestRows,\n    nota: \u0027Exportacion XLSX y carga SFTP ejecutadas\u0027,\n    advertencia: gestRows === 0 ? \u0027Rama gestion sin ejecucion o sin datos\u0027 : null\n  }\n}];"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       1140,
+                                       120
+                                   ],
+                      "id":  "82aa6f4c-135f-4310-a5ec-ab98a1ea568e",
+                      "name":  "RESUMEN EJECUCION"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "={{ (() =\u003e {\n  const cfg = $items(\u0027CONFIG INICIAL\u0027, 0, 0)[0].json.cfg;\n  const forDate = String(cfg.report.forDate).replace(/\u0027/g, \"\u0027\u0027\");\n  const tz = String(cfg.report.tz || \u0027America/Guayaquil\u0027).replace(/\u0027/g, \"\u0027\u0027\");\n  return `SELECT\n    \u0027Solidario\u0027::text AS \"Cedente\",\n    \u0027BOT IA\u0027::text AS \"Canal\",\n    num_operacion AS \"NumeroOperacion\",\n    user_name_gestion AS \"UserNameGestion\",\n    (\n      CASE\n        WHEN numero_telefono LIKE \u0027+593%\u0027 THEN \u00270\u0027 || substr(numero_telefono, 5)\n        WHEN numero_telefono LIKE \u0027593%\u0027 THEN \u00270\u0027 || substr(numero_telefono, 4)\n        WHEN numero_telefono LIKE \u002709%\u0027 THEN numero_telefono\n        ELSE numero_telefono\n      END\n    )::text AS \"NumeroTelefono\",\n    observacion AS \"Observacion\",\n    respuesta AS \"Respuesta\",\n    to_char((fecha AT TIME ZONE \u0027${tz}\u0027)::date, \u0027DD-MM-YYYY\u0027) AS \"Fecha\",\n    id_llamada AS \"ID Llamada\",\n    hora_gestion AS \"Hora de Gestión\",\n    CASE WHEN fecha_promesa IS NULL THEN NULL ELSE to_char(fecha_promesa::date, \u0027DD-MM-YYYY\u0027) END AS \"Fecha Promesa\"\n  FROM public.solidario_reporte_gestion\n  WHERE (fecha AT TIME ZONE \u0027${tz}\u0027)::date = \u0027${forDate}\u0027::date\n  ORDER BY fecha, num_operacion;`;\n})() }}"
+                                     },
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.5,
+                      "position":  [
+                                       -880,
+                                       220
+                                   ],
+                      "id":  "consulta-gestion-dia-001",
+                      "name":  "CONSULTA GESTION (DIA)",
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "Iz7EEp0WgJu3LXhn",
+                                                           "name":  "Gea_postgress"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "toFile",
+                                         "fileFormat":  "xlsx",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.spreadsheetFile",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -620,
+                                       60
+                                   ],
+                      "id":  "xlsx-productividad-001",
+                      "name":  "XLSX PRODUCTIVIDAD"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "toFile",
+                                         "fileFormat":  "xlsx",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.spreadsheetFile",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -620,
+                                       220
+                                   ],
+                      "id":  "xlsx-gestion-001",
+                      "name":  "XLSX GESTION"
+                  },
+                  {
+                      "parameters":  {
+                                         "protocol":  "sftp",
+                                         "operation":  "upload",
+                                         "path":  "={{ (() =\u003e {\n  const cfg = $items(\u0027CONFIG INICIAL\u0027,0,0)[0].json.cfg;\n  const dd = cfg.report.yyyymmdd;\n  return `${cfg.report.exportFolderPath}/reporte_productividad_${dd}.xlsx`;\n})() }}",
+                                         "binaryData":  true,
+                                         "dataPropertyName":  "data"
+                                     },
+                      "type":  "n8n-nodes-base.ftp",
+                      "typeVersion":  1,
+                      "position":  [
+                                       -360,
+                                       60
+                                   ],
+                      "id":  "upload-productividad-sftp-001",
+                      "name":  "SUBIR PRODUCTIVIDAD SFTP",
+                      "credentials":  {
+                                          "sftp":  {
+                                                       "id":  "vEofEOfYOxdhgSvj",
+                                                       "name":  "SFTP account"
+                                                   }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "protocol":  "sftp",
+                                         "operation":  "upload",
+                                         "path":  "={{ (() =\u003e {\n  const cfg = $items(\u0027CONFIG INICIAL\u0027,0,0)[0].json.cfg;\n  const dd = cfg.report.yyyymmdd;\n  return `${cfg.report.exportFolderPath}/reporte_gestion_${dd}.xlsx`;\n})() }}",
+                                         "binaryData":  true,
+                                         "dataPropertyName":  "data"
+                                     },
+                      "type":  "n8n-nodes-base.ftp",
+                      "typeVersion":  1,
+                      "position":  [
+                                       -360,
+                                       220
+                                   ],
+                      "id":  "upload-gestion-sftp-001",
+                      "name":  "SUBIR GESTION SFTP",
+                      "credentials":  {
+                                          "sftp":  {
+                                                       "id":  "vEofEOfYOxdhgSvj",
+                                                       "name":  "SFTP account"
+                                                   }
+                                      }
+                  }
+              ],
+    "pinData":  {
+
+                },
+    "connections":  {
+                        "Cron Productividad 21h (L-S)":  {
+                                                             "main":  [
+                                                                          [
+                                                                              {
+                                                                                  "node":  "CONFIG INICIAL",
+                                                                                  "type":  "main",
+                                                                                  "index":  0
+                                                                              }
+                                                                          ]
+                                                                      ]
+                                                         },
+                        "Manual Trigger (Pruebas)":  {
+                                                         "main":  [
+                                                                      [
+                                                                          {
+                                                                              "node":  "CONFIG INICIAL",
+                                                                              "type":  "main",
+                                                                              "index":  0
+                                                                          }
+                                                                      ]
+                                                                  ]
+                                                     },
+                        "CONFIG INICIAL":  {
+                                               "main":  [
+                                                            [
+                                                                {
+                                                                    "node":  "UPSERT PRODUCTIVIDAD (DIA)",
+                                                                    "type":  "main",
+                                                                    "index":  0
+                                                                },
+                                                                {
+                                                                    "node":  "CONSULTA GESTION (DIA)",
+                                                                    "type":  "main",
+                                                                    "index":  0
+                                                                }
+                                                            ]
+                                                        ]
+                                           },
+                        "UPSERT PRODUCTIVIDAD (DIA)":  {
+                                                           "main":  [
+                                                                        [
+                                                                            {
+                                                                                "node":  "CONSULTA PRODUCTIVIDAD (DIA)",
+                                                                                "type":  "main",
+                                                                                "index":  0
+                                                                            }
+                                                                        ]
+                                                                    ]
+                                                       },
+                        "CONSULTA PRODUCTIVIDAD (DIA)":  {
+                                                             "main":  [
+                                                                          [
+                                                                              {
+                                                                                  "node":  "XLSX PRODUCTIVIDAD",
+                                                                                  "type":  "main",
+                                                                                  "index":  0
+                                                                              }
+                                                                          ]
+                                                                      ]
+                                                         },
+                        "XLSX PRODUCTIVIDAD":  {
+                                                   "main":  [
+                                                                [
+                                                                    {
+                                                                        "node":  "SUBIR PRODUCTIVIDAD SFTP",
+                                                                        "type":  "main",
+                                                                        "index":  0
+                                                                    }
+                                                                ]
+                                                            ]
+                                               },
+                        "SUBIR PRODUCTIVIDAD SFTP":  {
+                                                         "main":  [
+                                                                      [
+                                                                          {
+                                                                              "node":  "RESUMEN EJECUCION",
+                                                                              "type":  "main",
+                                                                              "index":  0
+                                                                          }
+                                                                      ]
+                                                                  ]
+                                                     },
+                        "CONSULTA GESTION (DIA)":  {
+                                                       "main":  [
+                                                                    [
+                                                                        {
+                                                                            "node":  "XLSX GESTION",
+                                                                            "type":  "main",
+                                                                            "index":  0
+                                                                        }
+                                                                    ]
+                                                                ]
+                                                   },
+                        "XLSX GESTION":  {
+                                             "main":  [
+                                                          [
+                                                              {
+                                                                  "node":  "SUBIR GESTION SFTP",
+                                                                  "type":  "main",
+                                                                  "index":  0
+                                                              }
+                                                          ]
+                                                      ]
+                                         },
+                        "SUBIR GESTION SFTP":  {
+                                                   "main":  [
+                                                                [
+                                                                    {
+                                                                        "node":  "RESUMEN EJECUCION",
+                                                                        "type":  "main",
+                                                                        "index":  0
+                                                                    }
+                                                                ]
+                                                            ]
+                                               }
+                    },
+    "active":  false,
+    "settings":  {
+                     "executionOrder":  "v1",
+                     "timezone":  "America/Guayaquil"
+                 },
+    "versionId":  "bd37ebd0-857f-49c7-9892-47acb6ace2df",
+    "meta":  {
+                 "instanceId":  "915a7f7568d882a64f47657d6f3fab09c88f51183cb22a1bfa48ee39cc137bcd"
+             },
+    "id":  "WuX1b6Wt0L7heQcH",
+    "tags":  [
+
+             ]
+}

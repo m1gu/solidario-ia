@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Banco Solidario Cobros - Carga de Datos</title>
+    <meta name="description" content="Herramienta de carga de datos para Banco Solidario Cobros">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="header">
+            <div class="header-content">
+                <div class="logo-section">
+                    <div class="logo-icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h1>Banco Solidario</h1>
+                        <p class="subtitle">Carga de datos - Cobros</p>
+                    </div>
+                </div>
+                <div class="connection-status" id="connectionStatus">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Verificando...</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <nav class="tabs-nav" aria-label="Navegación principal">
+                <button class="tab-btn active" id="tabUpload" type="button">Cargar Base de Datos</button>
+            </nav>
+
+            <section id="viewUpload">
+            <section class="upload-card" id="uploadSection">
+                <div class="card-header">
+                    <h2>Seleccionar Archivo</h2>
+                    <label class="dryrun-toggle">
+                        <input type="checkbox" id="dryRunCheck">
+                        <span>Modo prueba (dry run)</span>
+                    </label>
+                </div>
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-zone-content">
+                        <div class="drop-icon">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                                <line x1="12" y1="18" x2="12" y2="12"/>
+                                <polyline points="9 15 12 12 15 15"/>
+                            </svg>
+                        </div>
+                        <p class="drop-text">Arrastra tu archivo aqui</p>
+                        <p class="drop-subtext">o haz clic para seleccionar</p>
+                        <p class="drop-formats">Formatos: <strong>.xlsx</strong>, <strong>.csv</strong> o <strong>.txt</strong></p>
+                    </div>
+                    <input type="file" id="fileInput" accept=".xlsx,.csv,.txt" hidden>
+
+                    <div class="processing-overlay hidden" id="processingOverlay">
+                        <div class="spinner"></div>
+                        <p>Procesando archivo...</p>
+                    </div>
+                </div>
+
+                <div class="file-info hidden" id="fileInfo">
+                    <div class="file-details">
+                        <div class="file-icon">Archivo</div>
+                        <div>
+                            <p class="file-name" id="fileName">-</p>
+                            <p class="file-meta" id="fileMeta">-</p>
+                        </div>
+                    </div>
+                    <button class="btn btn-ghost" id="btnClearFile" title="Quitar archivo">X</button>
+                </div>
+            </section>
+
+            <section class="preview-card hidden" id="previewSection">
+                <div class="card-header">
+                    <h2>Vista Previa</h2>
+                    <span class="badge" id="rowCount">0 filas</span>
+                </div>
+                <div class="table-wrapper">
+                    <table id="previewTable">
+                        <thead id="previewHead"></thead>
+                        <tbody id="previewBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="action-card hidden" id="actionSection">
+                <div class="action-content">
+                    <div class="action-info">
+                        <h3 id="actionTitle">Listo para cargar</h3>
+                        <p id="actionSubtitle">Los datos se insertaran en <code id="tableNameDisplay">-</code></p>
+                    </div>
+                    <button class="btn btn-upload" id="btnUpload">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        Cargar Datos
+                    </button>
+                </div>
+
+                <div class="progress-section hidden" id="progressSection">
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="progressBar"></div>
+                    </div>
+                    <div class="progress-details">
+                        <span id="progressText">0%</span>
+                        <span id="progressCount">0 / 0 filas</span>
+                    </div>
+                </div>
+
+                <div class="result-section hidden" id="resultSection">
+                    <div class="result-content" id="resultContent"></div>
+                </div>
+            </section>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <p>Banco Solidario Cobros - Herramienta de Carga de Datos</p>
+        </footer>
+    </div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

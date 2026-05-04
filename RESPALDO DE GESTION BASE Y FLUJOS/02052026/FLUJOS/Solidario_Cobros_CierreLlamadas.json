@@ -1,0 +1,1280 @@
+{
+  "name": "Solidario-Cobros-CierreLlamadas",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "solidario-cobros-cierre-vapi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -37180,
+        6160
+      ],
+      "id": "9445e0cb-0d12-4213-9fa0-5ffcf5d37165",
+      "name": "Webhook Cierre VAPI",
+      "webhookId": "2ccdcffe-1d21-4f7b-8775-2803b8162cdd"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  const root = item.json || {};\n  const envelope = root.body && typeof root.body === 'object' ? root.body : root;\n  const headers = root.headers || envelope.headers || {};\n\n  const findDeep = (obj, predicate) => {\n    const seen = new Set();\n    const stack = [obj];\n    while (stack.length) {\n      const cur = stack.pop();\n      if (!cur || typeof cur !== 'object') continue;\n      if (seen.has(cur)) continue;\n      seen.add(cur);\n      if (predicate(cur)) return cur;\n      for (const v of Object.values(cur)) {\n        if (v && typeof v === 'object') stack.push(v);\n      }\n    }\n    return null;\n  };\n\n  const msg = envelope.message || envelope.data || root.message || root.data || {};\n  const eventType =\n    msg.type || envelope.type || root.type || envelope.event || root.event || envelope.messageType || root.messageType || null;\n\n  const callObj =\n    msg.call || envelope.call || root.call || findDeep(msg, (x) => x.id && (x.startedAt || x.endedAt || x.customer || x.metadata));\n\n  const metadata =\n    (callObj && callObj.metadata) || msg.metadata || envelope.metadata || root.metadata ||\n    findDeep(msg, (x) => x.num_operacion || x.cedula || x.agente_tipo) || {};\n\n  const customer =\n    (callObj && callObj.customer) || msg.customer || envelope.customer || root.customer ||\n    findDeep(msg, (x) => x.number && (x.name || x.phoneNumber || x.phone)) || {};\n\n  const startedAt =\n    (callObj && callObj.startedAt) || msg.startedAt || envelope.startedAt || root.startedAt || null;\n  const endedAt =\n    (callObj && callObj.endedAt) || msg.endedAt || envelope.endedAt || root.endedAt || null;\n\n  const headerCallId = headers['x-call-id'] || headers['X-Call-Id'] || headers['x-callid'] || null;\n  const callId =\n    (callObj && callObj.id) || msg.id || envelope.id || root.id || envelope.callId || root.callId || headerCallId || null;\n\n  item.json = {\n    ...root,\n    ...envelope,\n    ...msg,\n    ...(callObj || {}),\n    event_type: eventType,\n    is_final_event: String(eventType || '').toLowerCase() === 'end-of-call-report' || !!endedAt,\n    id_llamada: callId,\n    id: callId,\n    callId,\n    num_operacion: metadata.num_operacion || envelope.num_operacion || root.num_operacion || null,\n    cedula: metadata.cedula || envelope.cedula || root.cedula || null,\n    agente_tipo: metadata.agente_tipo || envelope.agente_tipo || root.agente_tipo || null,\n    telefono_preferido: customer.number || envelope.telefono || root.telefono || null,\n    startedAt,\n    endedAt,\n    phones: 'telefono_preferido',\n  };\n\n  return item;\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -36940,
+        6160
+      ],
+      "id": "2cd9cc22-d885-47ba-b56a-ee5bc71991e3",
+      "name": "NORMALIZA EVENTO CIERRE VAPI"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  const cfg = {\n    runtime: { testMode: false, timeOffsetMinutes: 0 },\n    db: { schema: 'public', table: 'solidario_registros', pk: 'num_operacion' },\n    states: { pending: 'PENDIENTE', inProgress: 'EN_PROCESO', retry: 'REINTENTAR', done: 'FINALIZADO' },\n    agents: { COBROS: 'dbb81b6f-8e6b-4b18-9db6-6a4fcf9dca37', PREVENTIVA: 'aa95f1ca-a21a-4445-b7ff-bc414774d805' },\n    vapi: { baseUrl: 'https://api.vapi.ai', apiKey: '484afd71-2703-4852-8580-9629620dde82', phoneNumberId: '09d4e6e1-6b8d-45a5-9c7b-10bd06999040', sip: '0', campaignId: 'SOLIDARIO_COBROS' },\n    policyPreventiva: {\n      TZ: 'America/Guayaquil', CC: '+593', maxDailyTries: 3, maxLifetimeTries: 14, offHoursWait: 30, waitAfterRetryMin: 30,\n      windows: [\n        { id: 'LUN_VIE_0800_1200', days: '1,2,3,4,5', start: '08:00', end: '12:00', max: 3, wait: 30, phones: 'telefono_preferido,telefono1,telefono2,telefono3,telefono4,telefono5,telefono6,telefono,tel1,tel2,tel3,tel4,tel5,tel6' },\n        { id: 'LUN_VIE_1201_1600', days: '1,2,3,4,5', start: '12:01', end: '16:00', max: 3, wait: 30, phones: 'telefono_preferido,telefono1,telefono2,telefono3,telefono4,telefono5,telefono6,telefono,tel1,tel2,tel3,tel4,tel5,tel6' },\n        { id: 'LUN_VIE_1601_2000', days: '1,2,3,4,5', start: '16:01', end: '20:00', max: 3, wait: 30, phones: 'telefono_preferido,telefono1,telefono2,telefono3,telefono4,telefono5,telefono6,telefono,tel1,tel2,tel3,tel4,tel5,tel6' },\n        { id: 'SAB_0800_1200', days: '6', start: '08:00', end: '12:00', max: 3, wait: 30, phones: 'telefono_preferido,telefono1,telefono2,telefono3,telefono4,telefono5,telefono6,telefono,tel1,tel2,tel3,tel4,tel5,tel6' }\n      ]\n    },\n    policyCobros: {\n      TZ: 'America/Guayaquil', CC: '+593', maxLifetimeTries: 28, phaseThreshold: 14, recallBetweenPhases: 240,\n      phase1: {\n        maxTries: 14,\n        windows: [\n          { id: 'P1_LV_0800_2000', days: '1,2,3,4,5', start: '08:00', end: '20:00', phones: 'telefono_preferido,tel5,tel6,tel3,tel4,tel1,tel2' },\n          { id: 'P1_SAB_0800_1200', days: '6', start: '08:00', end: '12:00', phones: 'telefono_preferido,tel5,tel6,tel3,tel4,tel1,tel2' }\n        ]\n      },\n      phase2: {\n        maxTries: 14,\n        windows: [\n          { id: 'P2_LV_0800_0859', days: '1,2,3,4,5', start: '08:00', end: '08:59', phones: 'telefono_preferido,tel5,tel6,tel3,tel4,tel1,tel2' },\n          { id: 'P2_LV_0900_1759', days: '1,2,3,4,5', start: '09:00', end: '17:59', phones: 'telefono_preferido,tel5,tel6,tel3,tel4' },\n          { id: 'P2_LV_1800_2000', days: '1,2,3,4,5', start: '18:00', end: '20:00', phones: 'telefono_preferido,tel5,tel6,tel3,tel4,tel1,tel2' },\n          { id: 'P2_SAB_0800_1200', days: '6', start: '08:00', end: '12:00', phones: 'telefono_preferido,tel5,tel6,tel3,tel4,tel1,tel2' },\n          { id: 'P2_SAB_1201_2200', days: '6', start: '12:01', end: '22:00', phones: 'telefono_preferido,tel5,tel6,tel3,tel4,tel1,tel2' }\n        ]\n      },\n      phoneRules: {\n        'customer-busy':           { recall: 5, maxRetries: 4, advancePhone: false, nom: 'CONTACTO FALLIDO NO JUSTIFICADO', cod: 'OCU08', mot: 'OCUPADO' },\n        'busy':                    { recall: 5, maxRetries: 4, advancePhone: false, nom: 'CONTACTO FALLIDO NO JUSTIFICADO', cod: 'OCU08', mot: 'OCUPADO' },\n        'no-answer':               { recall: 5, maxRetries: 4, advancePhone: false, nom: 'NO CONTACTO NO JUSTIFICADO', cod: 'NOCON05', mot: 'NO CONTESTAN' },\n        'call-not-answered':       { recall: 5, maxRetries: 4, advancePhone: false, nom: 'NO CONTACTO NO JUSTIFICADO', cod: 'NOCON05', mot: 'NO CONTESTAN' },\n        'customer-did-not-answer': { recall: 5, maxRetries: 4, advancePhone: false, nom: 'NO CONTACTO NO JUSTIFICADO', cod: 'NOCON05', mot: 'NO CONTESTAN' },\n        'silence-timed-out':       { recall: 5, maxRetries: 4, advancePhone: false, nom: 'NO CONTACTO NO JUSTIFICADO', cod: 'NOCON05', mot: 'NO CONTESTAN' },\n        'customer-speech-timeout': { recall: 5, maxRetries: 4, advancePhone: false, nom: 'NO CONTACTO NO JUSTIFICADO', cod: 'NOCON05', mot: 'NO CONTESTAN' },\n        'voicemail':               { recall: 5, maxRetries: 1, advancePhone: true, nom: 'NO CONTACTO NO JUSTIFICADO', cod: 'CONTESAUT', mot: 'CONTESTADOR AUTOMATICO' },\n        'voicemail-detected':      { recall: 5, maxRetries: 1, advancePhone: true, nom: 'NO CONTACTO NO JUSTIFICADO', cod: 'CONTESAUT', mot: 'CONTESTADOR AUTOMATICO' },\n        'answering-machine':       { recall: 5, maxRetries: 1, advancePhone: true, nom: 'NO CONTACTO NO JUSTIFICADO', cod: 'CONTESAUT', mot: 'CONTESTADOR AUTOMATICO' },\n        'machine-detected':        { recall: 5, maxRetries: 1, advancePhone: true, nom: 'NO CONTACTO NO JUSTIFICADO', cod: 'CONTESAUT', mot: 'CONTESTADOR AUTOMATICO' },\n        'voicemail-message-left':  { recall: 5, maxRetries: 1, advancePhone: true, nom: 'NO CONTACTO NO JUSTIFICADO', cod: 'CONTESAUT', mot: 'CONTESTADOR AUTOMATICO' },\n        'customer-rejected-call':  { recall: 0, maxRetries: 1, advancePhone: true, nom: 'CONTACTO FALLIDO NO JUSTIFICADO', cod: 'ERRENLALLA', mot: 'ERROR EN LA LLAMADA' },\n        'blocked':                 { recall: 0, maxRetries: 1, advancePhone: true, nom: 'CONTACTO FALLIDO NO JUSTIFICADO', cod: 'ERRENLALLA', mot: 'ERROR EN LA LLAMADA' },\n        'rejected':                { recall: 0, maxRetries: 1, advancePhone: true, nom: 'CONTACTO FALLIDO NO JUSTIFICADO', cod: 'ERRENLALLA', mot: 'ERROR EN LA LLAMADA' },\n        'compliance-rejected':     { recall: 0, maxRetries: 1, advancePhone: true, nom: 'CONTACTO FALLIDO NO JUSTIFICADO', cod: 'ERRENLALLA', mot: 'ERROR EN LA LLAMADA' },\n        'moderation-rejected':     { recall: 0, maxRetries: 1, advancePhone: true, nom: 'CONTACTO FALLIDO NO JUSTIFICADO', cod: 'ERRENLALLA', mot: 'ERROR EN LA LLAMADA' },\n        'failed':                  { recall: 5, maxRetries: 1, advancePhone: true, nom: 'NO CONTACTO JUSTIFICADO', cod: 'NUMAVE', mot: 'NUMERO AVERIADO' },\n        'connection-error':        { recall: 5, maxRetries: 1, advancePhone: true, nom: 'NO CONTACTO JUSTIFICADO', cod: 'NUMAVE', mot: 'NUMERO AVERIADO' },\n        'transport-error-':        { recall: 5, maxRetries: 1, advancePhone: true, nom: 'NO CONTACTO JUSTIFICADO', cod: 'NUMAVE', mot: 'NUMERO AVERIADO' },\n        'pipeline-error-':         { recall: 0, maxRetries: 0, advancePhone: true, nom: 'NO CONTACTO JUSTIFICADO', cod: 'NUMAVE', mot: 'NUMERO AVERIADO' },\n        'assistant-error-':        { recall: 0, maxRetries: 0, advancePhone: true, nom: 'NO CONTACTO JUSTIFICADO', cod: 'NUMAVE', mot: 'NUMERO AVERIADO' },\n        'unknown-error':           { recall: 0, maxRetries: 0, advancePhone: true, nom: 'NO CONTACTO JUSTIFICADO', cod: 'NUMAVE', mot: 'NUMERO AVERIADO' },\n        'server-url-':             { recall: 0, maxRetries: 0, advancePhone: true, nom: 'NO CONTACTO JUSTIFICADO', cod: 'NUMAVE', mot: 'NUMERO AVERIADO' },\n        'tool-call-':              { recall: 0, maxRetries: 0, advancePhone: true, nom: 'NO CONTACTO JUSTIFICADO', cod: 'NUMAVE', mot: 'NUMERO AVERIADO' }\n      },\n      phoneRuleDefault: { recall: 5, maxRetries: 1, advancePhone: true, nom: 'NO CONTACTO JUSTIFICADO', cod: 'NUMAVE', mot: 'NUMERO AVERIADO' }\n    },\n    calendar: { feriados: ['2026-04-30', '2026-05-01'] },\n    formats: { date: 'DD-MM-YYYY', time: 'HH:MM', luxonDate: 'dd-MM-yyyy', luxonTime: 'HH:mm' },\n    phoneFields: ['telefono_preferido','telefono1','telefono2','telefono3','telefono4','telefono5','telefono6','telefono','tel1','tel2','tel3','tel4','tel5','tel6'],\n    retryNomenclaturas: ['NO CONTACTO NO JUSTIFICADO','NO CONTACTO JUSTIFICADO','PENDIENTE DE ACEPTACION','CONTACTO FALLIDO NO JUSTIFICADO'],\n    noPhoneClassification: { nomenclatura: 'NO CONTACTO JUSTIFICADO', codigo_respuesta: 'NUMAVE', motivo: 'NUMERO AVERIADO' },\n    catalog: [\n      { nomenclatura: 'ACEPTACION', codigo_respuesta: 'NORECESTDECUE', motivo: 'NO RECIBE ESTADOS DE CUENTA' },\n      { nomenclatura: 'ACEPTACION', codigo_respuesta: 'PAGNOREG', motivo: 'PAGO NO REGISTRADO' },\n      { nomenclatura: 'CONTACTO FALLIDO JUSTIFICADO', codigo_respuesta: 'FAL03', motivo: 'FALLECIDO' },\n      { nomenclatura: 'CONTACTO FALLIDO JUSTIFICADO', codigo_respuesta: 'MSJTERCEROS', motivo: 'MENSAJE CON TERCEROS' },\n      { nomenclatura: 'CONTACTO FALLIDO JUSTIFICADO', codigo_respuesta: 'NOAYU', motivo: 'NO AYUDA' },\n      { nomenclatura: 'CONTACTO FALLIDO JUSTIFICADO', codigo_respuesta: 'NUMEQU', motivo: 'NUMERO EQUIVOCADO' },\n      { nomenclatura: 'CONTACTO FALLIDO NO JUSTIFICADO', codigo_respuesta: 'ERRENLALLA', motivo: 'ERROR EN LA LLAMADA' },\n      { nomenclatura: 'CONTACTO FALLIDO NO JUSTIFICADO', codigo_respuesta: 'OCU08', motivo: 'OCUPADO' },\n      { nomenclatura: 'NO ACEPTACION', codigo_respuesta: 'DESPROD', motivo: 'DESACUERDO POR DESCONOCIMIENTO EN LAS CONDICIONES DEL SERVICIO Y/O PRODUCTO' },\n      { nomenclatura: 'NO ACEPTACION', codigo_respuesta: 'DEUOTRPER', motivo: 'DEUDA ES DE OTRA PERSONA' },\n      { nomenclatura: 'NO ACEPTACION', codigo_respuesta: 'RESINGPERNOCOICO', motivo: 'INGRESO PERCIBIDO NO COINCIDE CON FECHA DE PAGO' },\n      { nomenclatura: 'NO ACEPTACION', codigo_respuesta: 'NOTIETRA', motivo: 'NO TIENE TRABAJO' },\n      { nomenclatura: 'NO ACEPTACION', codigo_respuesta: 'PRIAOTRDEU', motivo: 'PRIORIDAD A OTRAS DEUDAS' },\n      { nomenclatura: 'NO ACEPTACION', codigo_respuesta: 'RESEMESANCOV19', motivo: 'PASA POR UN PROBLEMA DE SALUD (SUYO O FAMILIAR)' },\n      { nomenclatura: 'NO ACEPTACION', codigo_respuesta: 'PROBLSALUD', motivo: 'PASA POR UN PROBLEMA (SUYO O FAMILIAR) DE SALUD, ACCIDENTE, VIAJE O CALAMIDAD' },\n      { nomenclatura: 'NO ACEPTACION', codigo_respuesta: 'RESROBDENEGOFRA', motivo: 'ROBO DE NEGOCIO O FRAUDE' },\n      { nomenclatura: 'NO ACEPTACION', codigo_respuesta: 'SINJUS', motivo: 'SIN JUSTIFICACION' },\n      { nomenclatura: 'NO ACEPTACION', codigo_respuesta: 'RESSUEATRMASDEUN', motivo: 'SUELDO ATRASADO MAS DE UN MES' },\n      { nomenclatura: 'NO ACEPTACION', codigo_respuesta: 'RESSUEMASBAJ-EST', motivo: 'SUELDO MAS BAJO - ESTA MAL SU NEGOCIO' },\n      { nomenclatura: 'NO ACEPTACION', codigo_respuesta: 'RESSUPDEIDE', motivo: 'SUPLANTACION DE IDENTIDAD' },\n      { nomenclatura: 'NO CONTACTO JUSTIFICADO', codigo_respuesta: 'CLIENELEXT', motivo: 'CLIENTE EN EL EXTERIOR' },\n      { nomenclatura: 'NO CONTACTO JUSTIFICADO', codigo_respuesta: 'NUMAVE', motivo: 'NUMERO AVERIADO' },\n      { nomenclatura: 'NO CONTACTO NO JUSTIFICADO', codigo_respuesta: 'CONTESAUT', motivo: 'CONTESTADOR AUTOMATICO' },\n      { nomenclatura: 'NO CONTACTO NO JUSTIFICADO', codigo_respuesta: 'NOCON05', motivo: 'NO CONTESTAN' },\n      { nomenclatura: 'PENDIENTE DE ACEPTACION', codigo_respuesta: 'RESAGECONTER', motivo: 'AGENDAMIENTO CONTACTO TERCERO' },\n      { nomenclatura: 'PENDIENTE DE ACEPTACION', codigo_respuesta: 'RESAGECONTIT', motivo: 'AGENDAMIENTO CONTACTO TITULAR' },\n      { nomenclatura: 'PENDIENTE DE ACEPTACION', codigo_respuesta: 'EXTIPAGO', motivo: 'ASESOR O GERENTE EXTIENDE PAGO' },\n      { nomenclatura: 'PENDIENTE DE ACEPTACION', codigo_respuesta: 'COMPAGOASECORP', motivo: 'COMPROMISO ASESOR CLIENTE CORPORATIVO' },\n      { nomenclatura: 'PENDIENTE DE ACEPTACION', codigo_respuesta: 'COMPAGO', motivo: 'COMPROMISO PAGO' },\n      { nomenclatura: 'PENDIENTE DE ACEPTACION', codigo_respuesta: 'PRECON', motivo: 'PREVIAMENTE CONTACTADO' },\n      { nomenclatura: 'PENDIENTE DE ACEPTACION', codigo_respuesta: 'RECDEFECDEPAG', motivo: 'RECORDATORIO DE FECHA DE PAGO' },\n      { nomenclatura: 'PENDIENTE DE ACEPTACION', codigo_respuesta: 'VIATEM', motivo: 'VIAJE TEMPORAL' }\n    ]\n  };\n  item.json.cfg = cfg;\n  return item;\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -36700,
+        6160
+      ],
+      "id": "f2f1da02-055a-47de-9359-d3a4cda206b1",
+      "name": "CONFIG INICIAL"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  const lead = item.json;\n  const cfg = $items('CONFIG INICIAL', 0, 0)[0].json.cfg;\n\n  const defaultCC = (lead.system_payload?.CC || '+593').toString();\n  const normalizeList = (v) => Array.isArray(v) ? v : String(v || '').split(',');\n  const windowFields = normalizeList(lead.phones).map(s => s.trim()).filter(Boolean);\n  const phoneFields = windowFields.length ? windowFields : cfg.phoneFields;\n\n  const toE164 = (raw) => {\n    let x = String(raw || '').replace(/[^\\d+]/g, '').trim();\n    if (!x) return '';\n    if (x.startsWith('00')) x = '+' + x.slice(2);\n    if (!x.startsWith('+')) {\n      if (defaultCC === '+593') {\n        if (x.startsWith('0')) x = x.slice(1);\n        if (/^593\\d+$/.test(x)) return '+' + x;\n        if (/^\\d+$/.test(x)) return '+593' + x;\n      } else if (/^\\d+$/.test(x)) {\n        return defaultCC + x;\n      }\n    }\n    return x;\n  };\n\n  const valid = (n) => /^\\+\\d{7,15}$/.test(n);\n\n  const available = phoneFields\n    .map(field => ({ field, raw: lead[field], value: toE164(lead[field]) }))\n    .filter(p => p.raw != null && String(p.raw).trim() !== '');\n\n  const unique = [];\n  const seen = new Set();\n  for (const p of available) {\n    if (!p.value || seen.has(p.value)) continue;\n    seen.add(p.value);\n    unique.push({ ...p, valid: valid(p.value) });\n  }\n\n  const idx = Math.max(0, Number(lead.telefono_index ?? 0));\n  const selected = unique.slice(idx).find(p => p.valid);\n\n  lead.telefono_actual = selected?.value || '';\n  lead.telefono_field = selected?.field || '';\n  lead.isOutOfNumbers = !selected;\n  lead.hasValidPhones = unique.some(p => p.valid);\n\n  return item;\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -36460,
+        6000
+      ],
+      "id": "b3f16159-529f-41b3-9093-4912db0dd874",
+      "name": "PROCESA LOS NUMEROS Y FORMATEA1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2087ce1a-f9f7-457f-bd4f-02f2f630b924",
+              "name": "num_operacion",
+              "value": "={{ $json.num_operacion || $json.metadata?.num_operacion || null }}",
+              "type": "string"
+            },
+            {
+              "id": "d2282476-a9f7-4f01-98d3-bfa2a7b59103",
+              "name": "resumen_llamada",
+              "value": "={{ $json.structuredOutputs?.resumen_llamada ?? $json.structuredOutputs?.Resumen_Llamada ?? $json.structuredOutputs?.resumen ?? $json.artifact?.structuredOutputs?.resumen_llamada ?? $json.artifact?.structuredOutputs?.Resumen_Llamada ?? $json.artifact?.structuredOutputs?.resumen ?? $json.analysis?.structuredOutputs?.resumen_llamada ?? $json.analysis?.structuredOutputs?.Resumen_Llamada ?? $json.analysis?.structuredOutputs?.resumen ?? $json.summary ?? null }}",
+              "type": "string"
+            },
+            {
+              "id": "a3af6af1-3813-4286-99fe-4b155ccee4a0",
+              "name": "transcripcion_llamada",
+              "value": "={{ $json.transcript }}",
+              "type": "string"
+            },
+            {
+              "id": "3056d527-0588-49a1-a574-f11e839970c1",
+              "name": "ultimo_resultado_llamada",
+              "value": "={{ $json.endedReason }}",
+              "type": "string"
+            },
+            {
+              "id": "724f290b-d362-43e0-89eb-3e13f463211e",
+              "name": "startcall",
+              "value": "={{ $json.startedAt }}",
+              "type": "string"
+            },
+            {
+              "id": "d91ab883-37c7-4f7d-af5c-8aa6f7db35f6",
+              "name": "endedcall",
+              "value": "={{ $json.endedAt }}",
+              "type": "string"
+            },
+            {
+              "id": "78794302-9314-4da5-94a9-e6e0164443a8",
+              "name": "link_audio_vapi",
+              "value": "={{ $json.recordingUrl }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -36160,
+        6040
+      ],
+      "id": "862313d7-0c24-46db-af79-ce6dc392d96f",
+      "name": "Establece los valores a guardar1",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "1b371bae-0cc3-4ed2-a562-773553e78c73",
+              "leftValue": "={{ $json.status_sugerido }}",
+              "rightValue": "FINAL",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "87d21e8c-2d93-48ad-b5ce-11fcbf041c34",
+              "leftValue": "={{ $json.status_sugerido }}",
+              "rightValue": "REINTENTAR",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -35560,
+        5900
+      ],
+      "id": "28e52e86-0ae8-42c9-81b1-4dcae9608061",
+      "name": "SI EL ESTADO ES PENDIENTE O REINTENTAR1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "86765617-a184-4c8f-a631-e12b2aafbadf",
+              "name": "num_operacion",
+              "value": "={{ $('Establece los valores a guardar1').item.json.num_operacion }}",
+              "type": "string"
+            },
+            {
+              "id": "1996769d-e2a9-4f0b-b4bb-498eb8bd0e4c",
+              "name": "nomenclatura",
+              "value": "={{ $json.nomenclatura }}",
+              "type": "string"
+            },
+            {
+              "id": "428476b4-abee-4615-8b78-64139a3039f1",
+              "name": "codigo_respuesta",
+              "value": "={{ $json.codigo_respuesta }}",
+              "type": "string"
+            },
+            {
+              "id": "b0cecaeb-3f72-4fa7-bb4a-90ade936cb6b",
+              "name": "motivo",
+              "value": "={{ $json.motivo }}",
+              "type": "string"
+            },
+            {
+              "id": "1bd19909-6826-4d90-b566-7aab020bbf5d",
+              "name": "fecha_gestion",
+              "value": "={{ $('Establece los valores a guardar1').item.json.endedcall || $now }}",
+              "type": "string"
+            },
+            {
+              "id": "c1fc77e0-6926-42d7-91ba-a3097db928a0",
+              "name": "sentimiento",
+              "value": "={{ $json.sentimiento }}",
+              "type": "string"
+            },
+            {
+              "id": "95f26141-cedb-4774-844f-0d12fb2308db",
+              "name": "transcripcion_llamada",
+              "value": "={{ $('Establece los valores a guardar1').item.json.transcripcion_llamada }}",
+              "type": "string"
+            },
+            {
+              "id": "694e5b37-49a8-4219-a4b1-3168b9a9cbcc",
+              "name": "resumen_llamada",
+              "value": "={{ $json.resumen_llamada || $('Establece los valores a guardar1').item.json.resumen_llamada || null }}",
+              "type": "string"
+            },
+            {
+              "id": "f66e0a51-6ce5-4530-b2da-fd8385d2d914",
+              "name": "link_audio_vapi",
+              "value": "={{ $('Establece los valores a guardar1').item.json.link_audio_vapi }}",
+              "type": "string"
+            },
+            {
+              "id": "7f9d6f4c-f22f-4533-a766-2f1c9897ebf2",
+              "name": "id_llamada",
+              "value": "={{ $('Establece los valores a guardar1').item.json.id || $('Establece los valores a guardar1').item.json.id_llamada || $json.id_llamada || null }}",
+              "type": "string"
+            },
+            {
+              "id": "d38ae067-b88e-42a8-8f3c-9afedf153f66",
+              "name": "estado_flujo",
+              "value": "={{ $json.estado_flujo }}",
+              "type": "string"
+            },
+            {
+              "id": "d6ee8587-9d57-40ee-9bc4-27fa5174e9f0",
+              "name": "reintentar_iso",
+              "value": "={{ $json.reintentar_iso }}",
+              "type": "string"
+            },
+            {
+              "id": "d58fa7b2-fdc4-4880-8e98-a438494f37d0",
+              "name": "duracion_segundos",
+              "value": "={{ $json.duracion_segundos }}",
+              "type": "number"
+            },
+            {
+              "id": "901a8851-bde0-4314-a0f1-19e32c471112",
+              "name": "intentos_llamada",
+              "value": "={{ Number($json.intentos_llamada || 0) }}",
+              "type": "number"
+            },
+            {
+              "id": "dbef667e-430e-465d-81e6-7d6c0f6a409c",
+              "name": "win_tries",
+              "value": "={{ Number($json.win_tries || 0) }}",
+              "type": "number"
+            },
+            {
+              "id": "a6fd63df-150e-4659-a688-01c3dade246c",
+              "name": "telefono_index",
+              "value": "={{ Number($json.telefono_index || 0) }}",
+              "type": "number"
+            },
+            {
+              "id": "ddfb0bc3-5fce-47d9-b19e-d7922a82ed16",
+              "name": "win_stamp",
+              "value": "={{ $json.win_stamp }}",
+              "type": "string"
+            },
+            {
+              "id": "736904ca-0c0c-41f7-b098-674451e2800f",
+              "name": "ultimo_resultado_llamada",
+              "value": "={{ $('Establece los valores a guardar1').item.json.ultimo_resultado_llamada }}",
+              "type": "string"
+            },
+            {
+              "id": "aa2464f11c9ccf71",
+              "name": "fecha_reprogramada",
+              "value": "={{ ($json.fecha_reprogramada == null || String($json.fecha_reprogramada).trim() === '') ? null : $json.fecha_reprogramada }}",
+              "type": "string"
+            },
+            {
+              "id": "3b6420a17a41ccc4",
+              "name": "es_familiar",
+              "value": "={{ $json.es_familiar }}",
+              "type": "string"
+            },
+            {
+              "id": "1c509f1d0bc1f971",
+              "name": "telefono_preferido",
+              "value": "={{ ($json.telefono_preferido == null || String($json.telefono_preferido).trim() === '') ? null : $json.telefono_preferido }}",
+              "type": "string"
+            },
+            {
+              "id": "aceptacion_field_new",
+              "name": "aceptacion",
+              "value": "={{ $json.aceptacion }}",
+              "type": "string"
+            },
+            {
+              "id": "fecha_promesa_new",
+              "name": "fecha_promesa",
+              "value": "={{ $json.fecha_promesa }}",
+              "type": "string"
+            },
+            {
+              "id": "monto_promesa_new",
+              "name": "monto_promesa",
+              "value": "={{ $json.monto_promesa }}",
+              "type": "string"
+            },
+            {
+              "id": "canal_new",
+              "name": "canal",
+              "value": "={{ $json.canal }}",
+              "type": "string"
+            },
+            {
+              "id": "phase4_agente_tipo_037b373b",
+              "name": "agente_tipo",
+              "value": "={{ $json.agente_tipo || $json.metadata?.agente_tipo || 'COBROS' }}",
+              "type": "string"
+            },
+            {
+              "id": "phase4_user_name_gestion_e7db4133",
+              "name": "user_name_gestion",
+              "value": "={{ $json.agente_tipo || $json.metadata?.agente_tipo || 'COBROS' }}",
+              "type": "string"
+            },
+            {
+              "id": "phase4_numero_telefono_20acd188",
+              "name": "numero_telefono",
+              "value": "={{ $json.telefono_actual || $node['PROCESA LOS NUMEROS Y FORMATEA1'].json.telefono_actual || null }}",
+              "type": "string"
+            },
+            {
+              "id": "phase4_hora_inicio_llamada_cd95e415",
+              "name": "hora_inicio_llamada",
+              "value": "={{ $('Establece los valores a guardar1').item.json.startcall || null }}",
+              "type": "string"
+            },
+            {
+              "id": "phase4_hora_fin_llamada_0c3831c2",
+              "name": "hora_fin_llamada",
+              "value": "={{ $('Establece los valores a guardar1').item.json.endedcall || null }}",
+              "type": "string"
+            },
+            {
+              "id": "phase4_hora_gestion_e8165653",
+              "name": "hora_gestion",
+              "value": "={{ (() => { const x = $('Establece los valores a guardar1').item.json.endedcall || $json.fecha_gestion || null; if (!x) return null; const d = new Date(x); if (isNaN(d.getTime())) return null; return d.toLocaleTimeString('en-GB', { timeZone: 'America/Guayaquil', hour12: false }).slice(0,8); })() }}",
+              "type": "string"
+            },
+            {
+              "id": "phase4_cedula_00d661c9",
+              "name": "cedula",
+              "value": "={{ $json.cedula || $json.metadata?.cedula || null }}",
+              "type": "string"
+            },
+            {
+              "id": "phase4_contactoalo_064a639f",
+              "name": "contactoalo",
+              "value": "={{ $json.contactoalo ?? $json.contacto_alo ?? null }}",
+              "type": "string"
+            },
+            {
+              "id": "phase4_duracion_llamada_f75c9470",
+              "name": "duracion_llamada",
+              "value": "={{ $json.duracion_segundos || null }}",
+              "type": "number"
+            },
+            {
+              "id": "phase4_contactoefectivo_new",
+              "name": "contactoefectivo",
+              "value": "={{ $json.contactoefectivo ?? $json.contacto_efectivo ?? null }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -35100,
+        5960
+      ],
+      "id": "55815bf6-b6c0-4d94-9ec6-c5c5df5cd053",
+      "name": "mapea los campos del cliente1",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "solidario_llamadas",
+          "cachedResultName": "solidario_llamadas"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "num_operacion": "={{ String($json.num_operacion || $(\"mapea los campos del cliente1\").item.json.num_operacion || \"\") }}",
+            "cedula": "={{ $json.cedula || $(\"mapea los campos del cliente1\").item.json.cedula || null }}",
+            "id_llamada": "={{ $json.id_llamada || $(\"mapea los campos del cliente1\").item.json.id_llamada || $(\"mapea los campos del cliente1\").item.json.id || null }}",
+            "fecha_gestion": "={{ $json.fecha_gestion || $(\"mapea los campos del cliente1\").item.json.fecha_gestion || $now }}",
+            "hora_gestion": "={{ $json.hora_gestion || $(\"mapea los campos del cliente1\").item.json.hora_gestion || null }}",
+            "nomenclatura": "={{ $json.nomenclatura || $(\"mapea los campos del cliente1\").item.json.nomenclatura || null }}",
+            "codigo_respuesta": "={{ $json.codigo_respuesta || $(\"mapea los campos del cliente1\").item.json.codigo_respuesta || null }}",
+            "motivo": "={{ $json.motivo || $(\"mapea los campos del cliente1\").item.json.motivo || null }}",
+            "sentimiento": "={{ $json.sentimiento ?? $(\"mapea los campos del cliente1\").item.json.sentimiento ?? null }}",
+            "transcripcion_llamada": "={{ $json.transcripcion_llamada || $(\"mapea los campos del cliente1\").item.json.transcripcion_llamada || null }}",
+            "resumen_llamada": "={{ $json.resumen_llamada ?? $(\"mapea los campos del cliente1\").item.json.resumen_llamada ?? null }}",
+            "link_audio_vapi": "={{ $json.link_audio_vapi || $(\"mapea los campos del cliente1\").item.json.link_audio_vapi || null }}",
+            "ultimo_resultado_llamada": "={{ $json.ultimo_resultado_llamada || $(\"mapea los campos del cliente1\").item.json.ultimo_resultado_llamada || null }}",
+            "es_familiar": "={{ $json.es_familiar || $(\"mapea los campos del cliente1\").item.json.es_familiar || null }}",
+            "duracion_llamada": "={{ $json.duracion_llamada || $(\"mapea los campos del cliente1\").item.json.duracion_llamada || $(\"mapea los campos del cliente1\").item.json.duracion_segundos || null }}",
+            "hora_inicio_llamada": "={{ $json.hora_inicio_llamada || $(\"mapea los campos del cliente1\").item.json.hora_inicio_llamada || $(\"mapea los campos del cliente1\").item.json.startcall || null }}",
+            "hora_fin_llamada": "={{ $json.hora_fin_llamada || $(\"mapea los campos del cliente1\").item.json.hora_fin_llamada || $(\"mapea los campos del cliente1\").item.json.endedcall || null }}",
+            "aceptacion": "={{ $json.aceptacion || $(\"mapea los campos del cliente1\").item.json.aceptacion || null }}",
+            "contactoalo": "={{ $json.contactoalo || $(\"mapea los campos del cliente1\").item.json.contactoalo || $(\"mapea los campos del cliente1\").item.json.contactoefectivo || null }}",
+            "contactoefectivo": "={{ $json.contactoefectivo || $(\"mapea los campos del cliente1\").item.json.contactoefectivo || null }}",
+            "monto_promesa": "={{ $json.monto_promesa ?? $(\"mapea los campos del cliente1\").item.json.monto_promesa ?? null }}",
+            "fecha_promesa": "={{ $json.fecha_promesa ?? $(\"mapea los campos del cliente1\").item.json.fecha_promesa ?? null }}",
+            "numero_telefono": "={{ $json.numero_telefono || $json.telefono_actual || $json.telefono_preferido || $(\"mapea los campos del cliente1\").item.json.numero_telefono || $(\"mapea los campos del cliente1\").item.json.telefono_actual || $(\"mapea los campos del cliente1\").item.json.telefono_preferido || null }}"
+          },
+          "matchingColumns": [
+            "id_llamada"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "num_operacion",
+              "displayName": "num_operacion",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "cedula",
+              "displayName": "cedula",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "id_llamada",
+              "displayName": "id_llamada",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "fecha_gestion",
+              "displayName": "fecha_gestion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "hora_gestion",
+              "displayName": "hora_gestion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "nomenclatura",
+              "displayName": "nomenclatura",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "codigo_respuesta",
+              "displayName": "codigo_respuesta",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "motivo",
+              "displayName": "motivo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "sentimiento",
+              "displayName": "sentimiento",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "transcripcion_llamada",
+              "displayName": "transcripcion_llamada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "resumen_llamada",
+              "displayName": "resumen_llamada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "link_audio_vapi",
+              "displayName": "link_audio_vapi",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "ultimo_resultado_llamada",
+              "displayName": "ultimo_resultado_llamada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "es_familiar",
+              "displayName": "es_familiar",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "duracion_llamada",
+              "displayName": "duracion_llamada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "hora_inicio_llamada",
+              "displayName": "hora_inicio_llamada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "hora_fin_llamada",
+              "displayName": "hora_fin_llamada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "aceptacion",
+              "displayName": "aceptacion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "contactoalo",
+              "displayName": "contactoalo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "contactoefectivo",
+              "displayName": "contactoefectivo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "monto_promesa",
+              "displayName": "monto_promesa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "fecha_promesa",
+              "displayName": "fecha_promesa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "numero_telefono",
+              "displayName": "numero_telefono",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -34460,
+        6120
+      ],
+      "id": "e345f4d8-5077-4832-9e5d-a55a11c0e76a",
+      "name": "GUARDAR REPORTE",
+      "retryOnFail": true,
+      "credentials": {
+        "postgres": {
+          "id": "Iz7EEp0WgJu3LXhn",
+          "name": "Gea_postgress"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  const root = item.json;\n\n  const isFinalEvent = (String(root.event_type || '').toLowerCase() === 'end-of-call-report');\n  if (!isFinalEvent) { item.json.status_sugerido = 'IGNORE'; return item; }\n\n  const cfg = root.cfg || $items('CONFIG INICIAL', 0, 0)[0].json.cfg;\n  const lastAgentType = String(root.agente_tipo || root.metadata?.agente_tipo || '').toUpperCase();\n  const evtReason = String(root.endedReason || root.event_type || '').toLowerCase();\n\n  // Helper to extract and normalize data\n  const extracted = {};\n  const processData = (data) => {\n    if (!data) return;\n    \n    // If it's a string, try to parse it as JSON\n    if (typeof data === 'string' && (data.trim().startsWith('{') || data.trim().startsWith('['))) {\n        try {\n            const parsed = JSON.parse(data);\n            processData(parsed);\n            return;\n        } catch (e) {}\n    }\n\n    if (typeof data !== 'object') return;\n\n    for (let [key, val] of Object.entries(data)) {\n      if (val === null || val === undefined) continue;\n      \n      const k = key.toLowerCase().trim();\n      \n      // Map specific keys to expected names\n      if (k === 'nomenclatura') extracted.nomenclatura = val;\n      else if (k === 'codigo_respuesta' || k === 'codigo') extracted.codigo_respuesta = val;\n      else if (k === 'motivo') extracted.motivo = val;\n      else if (k === 'fecha_promesa') extracted.fecha_promesa = val;\n      else if (k === 'monto_promesa') extracted.monto_promesa = val;\n      else if (k === 'canal_promesa' || k === 'canal') extracted.canal = val;\n      else if (k === 'fecha_reprogramada' || k === 'fecha_reagenda') extracted.fecha_reagenda = val;\n      else if (k === 'es_familiar') extracted.es_familiar = val;\n      else if (k === 'telefono_preferido') extracted.telefono_preferido = val;\n      else if (k === 'aceptacion') extracted.aceptacion = val;\n      else if (k === 'contactoefectivo') extracted.contactoefectivo = val;\n      else if (k === 'contactoalo') extracted.contactoalo = val;\n      else if (k === 'sentimiento_cliente' || k === 'sentimiento') extracted.sentimiento = val;\n      else if (k === 'resumen_llamada' || k === 'resumen') extracted.resumen_llamada = val;\n\n      // If the value itself is a JSON string, process it recursively\n      if (typeof val === 'string' && (val.trim().startsWith('{') || val.trim().startsWith('['))) {\n        try {\n          const parsed = JSON.parse(val);\n          processData(parsed);\n        } catch (e) {}\n      } else if (val && typeof val === 'object' && !Array.isArray(val)) {\n        // If the value is an object, process it recursively\n        processData(val);\n      }\n    }\n  };\n\n  // 1. Search in structuredData\n  processData(root.analysis?.structuredData);\n\n  // 2. Search in tool call results from artifact.messages\n  const messages = root.artifact?.messages || [];\n  messages.forEach(m => {\n    if (m.role === 'tool') {\n        if (m.name) processData({ [m.name]: m.result });\n        else processData(m.result);\n    }\n  });\n\n  // 3. Search in structuredOutputs (dynamic UUID keys)\n  const searchStructured = (obj) => {\n    if (!obj || typeof obj !== 'object') return;\n    Object.values(obj).forEach(val => {\n      if (val && typeof val === 'object' && val.name && val.result !== undefined) {\n        processData({ [val.name]: val.result });\n      }\n    });\n  };\n\n  searchStructured(root.structuredOutputs);\n  searchStructured(root.artifact?.structuredOutputs);\n  searchStructured(root.message?.structuredOutputs);\n  searchStructured(root.message?.artifact?.structuredOutputs);\n\n  // 4. Search directly in root for any tool-call-like objects (the UUID-keyed objects)\n  Object.keys(root).forEach(k => {\n    const tool = root[k];\n    if (tool && typeof tool === 'object' && tool.name && tool.result !== undefined) {\n      processData({ [tool.name]: tool.result });\n    }\n  });\n\n  // Merge extracted fields into item.json\n  Object.assign(item.json, extracted);\n\n  // Policy logic for COBROS failures\n  if (lastAgentType === 'COBROS') {\n    if (!['customer-ended-call', 'assistant-ended-call', 'assistant-forwarded-call', 'hangup'].includes(evtReason) && evtReason !== '') {\n      let rule = cfg.policyCobros.phoneRuleDefault;\n      for (const key in cfg.policyCobros.phoneRules) {\n        if (key.endsWith('-') && evtReason.startsWith(key)) { rule = cfg.policyCobros.phoneRules[key]; break; }\n        if (evtReason === key) { rule = cfg.policyCobros.phoneRules[key]; break; }\n      }\n      item.json.mapped_by_phonerule = true;\n      item.json.status_sugerido = cfg.states.retry;\n      item.json.nomenclatura = rule.nom;\n      item.json.codigo_respuesta = rule.cod;\n      item.json.motivo = rule.mot;\n      item.json.phone_rule_recall_min = rule.recall;\n      return item;\n    }\n  }\n\n  // Fallback para llamadas donde el usuario cuelga antes de que el agente genere tipificación\n  if (!item.json.nomenclatura && !item.json.codigo_respuesta) {\n    const hasContact = ['SI', 'SÍ', 'TRUE', '1'].includes(String(item.json.contactoefectivo || item.json.contactoalo || extracted.contactoefectivo || extracted.contactoalo || '').toUpperCase());\n    \n    if (hasContact) {\n      item.json.nomenclatura = 'CONTACTO FALLIDO NO JUSTIFICADO';\n      item.json.codigo_respuesta = 'ERRENLALLA';\n      item.json.motivo = 'ERROR EN LA LLAMADA (SIN TIPIFICACION TRAS CONTACTO)';\n    } else {\n      item.json.nomenclatura = 'CONTACTO FALLIDO NO JUSTIFICADO';\n      item.json.codigo_respuesta = 'ERRENLALLA';\n      item.json.motivo = 'ERROR EN LA LLAMADA';\n    }\n    item.json.status_sugerido = cfg.states.retry;\n  }\n\n  // Final classification matching\n  let successValue = String(item.json.nomenclatura || item.json.codigo_respuesta || '').toUpperCase();\n  let match = null;\n  if (successValue) {\n    match = cfg.catalog.find(c => c.nomenclatura.toUpperCase() === successValue || c.codigo_respuesta.toUpperCase() === successValue);\n  }\n\n  const isRetryableNom = cfg.retryNomenclaturas.includes(String(item.json.nomenclatura || '').toUpperCase());\n  const isClosureCode = ['COMPAGO', 'COMPAGOASECORP'].includes(item.json.codigo_respuesta);\n\n  if (isRetryableNom && !isClosureCode) item.json.status_sugerido = cfg.states.retry;\n  else item.json.status_sugerido = 'FINAL';\n\n  return item;\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -35840,
+        5960
+      ],
+      "id": "c0117e08-90c6-4275-8995-6f6e763658ab",
+      "name": "MAPEO REGLAS DE MARCADO1",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ (() => {\n  const cfg = $items('CONFIG INICIAL', 0, 0)[0].json.cfg;\n  const raw = String($json.num_operacion ?? $json.metadata?.num_operacion ?? '').trim();\n  if (!raw) return `SELECT 'skip_fallback_sin_num_operacion' AS status`;\n\n  const numOperacion = raw.replace(/'/g, \"''\");\n\n  const hasSnapshot = [\n    $json.snapshot_estado_flujo,\n    $json.snapshot_fecha_reagenda,\n    $json.snapshot_intentos_llamada,\n    $json.snapshot_win_tries,\n    $json.snapshot_telefono_index,\n    $json.snapshot_win_stamp,\n    $json.snapshot_fecha_ultima_llamada,\n    $json.snapshot_telefono_preferido,\n    $json.snapshot_fecha_promesa,\n    $json.snapshot_monto_promesa,\n  ].some(v => v !== undefined);\n\n  if (hasSnapshot) {\n    const snapEstado = String($json.snapshot_estado_flujo ?? cfg.states.pending ?? 'PENDIENTE').replace(/'/g, \"''\");\n\n    const snapFechaReagendaRaw = $json.snapshot_fecha_reagenda;\n    const snapFechaReagendaSql = (snapFechaReagendaRaw == null || String(snapFechaReagendaRaw).trim() === '')\n      ? 'NULL'\n      : ` '${String(snapFechaReagendaRaw).replace(/'/g, \"''\")}'::timestamptz `;\n\n    const snapFechaUltRaw = $json.snapshot_fecha_ultima_llamada;\n    const snapFechaUltSql = (snapFechaUltRaw == null || String(snapFechaUltRaw).trim() === '')\n      ? 'NULL'\n      : ` '${String(snapFechaUltRaw).replace(/'/g, \"''\")}'::timestamptz `;\n\n    const snapTelPrefRaw = $json.snapshot_telefono_preferido;\n    const snapTelPrefSql = (snapTelPrefRaw == null || String(snapTelPrefRaw).trim() === '')\n      ? 'NULL'\n      : ` '${String(snapTelPrefRaw).replace(/'/g, \"''\")}' `;\n\n    const snapFechaPromRaw = $json.snapshot_fecha_promesa;\n    const snapFechaPromSql = (snapFechaPromRaw == null || String(snapFechaPromRaw).trim() === '')\n      ? 'NULL'\n      : ` '${String(snapFechaPromRaw).replace(/'/g, \"''\")}'::date `;\n\n    const snapMontoPromNum = Number($json.snapshot_monto_promesa);\n    const snapMontoPromSql = Number.isFinite(snapMontoPromNum) ? String(snapMontoPromNum) : 'NULL';\n\n    const snapIntentos = Number($json.snapshot_intentos_llamada ?? 0);\n    const snapWinTries = Number($json.snapshot_win_tries ?? 0);\n    const snapTelIdx = Number($json.snapshot_telefono_index ?? 0);\n\n    const snapWinStampRaw = $json.snapshot_win_stamp;\n    const snapWinStampSql = (snapWinStampRaw == null || String(snapWinStampRaw).trim() === '')\n      ? 'NULL'\n      : ` '${String(snapWinStampRaw).replace(/'/g, \"''\")}' `;\n\n    return `UPDATE ${cfg.db.schema}.${cfg.db.table}\n            SET estado_flujo = '${snapEstado}',\n                fecha_reagenda = ${snapFechaReagendaSql},\n                intentos_llamada = ${Number.isFinite(snapIntentos) ? snapIntentos : 0},\n                win_tries = ${Number.isFinite(snapWinTries) ? snapWinTries : 0},\n                telefono_index = ${Number.isFinite(snapTelIdx) ? snapTelIdx : 0},\n                win_stamp = ${snapWinStampSql},\n                fecha_ultima_llamada = ${snapFechaUltSql},\n                telefono_preferido = ${snapTelPrefSql},\n                fecha_promesa = ${snapFechaPromSql},\n                monto_promesa = ${snapMontoPromSql},\n                updated_at = NOW()\n            WHERE num_operacion = '${numOperacion}'\n            RETURNING num_operacion, 'restored_from_snapshot' AS status;`;\n  }\n\n  const estado = String($json.estado_flujo || cfg.states.retry || 'REINTENTAR').replace(/'/g, \"''\");\n  const fechaRaw = $json.reintentar_iso || $json.fecha_reagenda || null;\n  const fechaSql = (fechaRaw == null || String(fechaRaw).trim() === '')\n    ? `NOW() + INTERVAL '${(cfg.runtime.timeOffsetMinutes||0) + 30} minutes'`\n    : ` '${String(fechaRaw).replace(/'/g, \"''\")}'::timestamptz `;\n\n  const intentos = Number($json.intentos_llamada || 0);\n  const winTries = Number($json.win_tries || 0);\n  const telIdx = Number($json.telefono_index || 0);\n\n  return `UPDATE ${cfg.db.schema}.${cfg.db.table}\n          SET estado_flujo = '${estado}',\n              fecha_reagenda = ${fechaSql},\n              intentos_llamada = ${Number.isFinite(intentos) ? intentos : 0},\n              win_tries = ${Number.isFinite(winTries) ? winTries : 0},\n              telefono_index = ${Number.isFinite(telIdx) ? telIdx : 0},\n              updated_at = NOW()\n          WHERE num_operacion = '${numOperacion}'\n          RETURNING num_operacion, 'fallback_without_snapshot' AS status;`;\n})() }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -35840,
+        6480
+      ],
+      "id": "c6d6905c-5b9f-4078-befd-827dc1812dcf",
+      "name": "FALLBACK ACTUALIZA ESTADO1",
+      "credentials": {
+        "postgres": {
+          "id": "Iz7EEp0WgJu3LXhn",
+          "name": "Gea_postgress"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "real_flag",
+              "leftValue": "={{ $json.es_llamada_real }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "real_oper",
+              "leftValue": "={{ $json.num_operacion }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -34740,
+        6040
+      ],
+      "id": "fb89e641-44ac-43aa-adb5-354f03417073",
+      "name": "ES LLAMADA REAL1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "comp_1",
+              "leftValue": "={{ $json.codigo_respuesta }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -34240,
+        6060
+      ],
+      "id": "c3b8a833-655c-4ae2-bf4f-509aa269a582",
+      "name": "REPORTE GESTION COMPLETO1"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "solidario_reporte_gestion",
+          "cachedResultName": "solidario_reporte_gestion"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "num_operacion": "={{ String($json.num_operacion || \"\") }}",
+            "user_name_gestion": "={{ $(\"mapea los campos del cliente1\").item.json.agente_tipo || $json.agente_tipo || $json.user_name_gestion || 'COBROS' }}",
+            "numero_telefono": "={{ $json.numero_telefono || $(\"mapea los campos del cliente1\").item.json.numero_telefono || $(\"mapea los campos del cliente1\").item.json.telefono_actual || $(\"mapea los campos del cliente1\").item.json.telefono_preferido || null }}",
+            "observacion": "={{ $json.resumen_llamada || $json.motivo || 'Llamada no contestada' }}",
+            "respuesta": "={{ $json.codigo_respuesta }}",
+            "fecha": "={{ $json.fecha_gestion || $now }}",
+            "fecha_promesa": "={{ $json.fecha_promesa || null }}",
+            "id_llamada": "={{ $json.id_llamada || null }}",
+            "hora_gestion": "={{ $json.hora_gestion || null }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "num_operacion",
+              "displayName": "num_operacion",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "user_name_gestion",
+              "displayName": "user_name_gestion",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "numero_telefono",
+              "displayName": "numero_telefono",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "observacion",
+              "displayName": "observacion",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "respuesta",
+              "displayName": "respuesta",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "fecha",
+              "displayName": "fecha",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "id_llamada",
+              "displayName": "id_llamada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "hora_gestion",
+              "displayName": "hora_gestion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "fecha_promesa",
+              "displayName": "fecha_promesa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -33960,
+        5980
+      ],
+      "id": "e2ff02dd-9931-45fa-b76a-8feeea432055",
+      "name": "GUARDA REPORTE GESTION1",
+      "credentials": {
+        "postgres": {
+          "id": "Iz7EEp0WgJu3LXhn",
+          "name": "Gea_postgress"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "68d22182-f47f-40d8-89be-a35f833a0f4d",
+      "name": "IGNORAR EVENTO NO FINAL",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -34460,
+        6620
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  const root = item.json || {};\n  const cfg = root.cfg || $items('CONFIG INICIAL', 0, 0)[0].json.cfg;\n  const lastAgentType = String(root.agente_tipo || root.metadata?.agente_tipo || '').toUpperCase();\n  const evtReason = String(root.endedReason || root.event_type || '').toLowerCase();\n\n  const extracted = {};\n  const setField = (k, v) => {\n    if (v === undefined || v === null) return;\n    if (typeof v === 'string' && v.trim() === '') return;\n    extracted[k] = v;\n  };\n\n  const mapKey = (rawKey) => {\n    const k = String(rawKey || '').toLowerCase().trim().replace(/\\s+/g, '_');\n    if (k === 'nomenclatura') return 'nomenclatura';\n    if (k === 'codigo_respuesta' || k === 'codigo') return 'codigo_respuesta';\n    if (k === 'motivo') return 'motivo';\n    if (k === 'fecha_promesa') return 'fecha_promesa';\n    if (k === 'monto_promesa') return 'monto_promesa';\n    if (k === 'canal_promesa' || k === 'canal') return 'canal';\n    if (k === 'fecha_reprogramada' || k === 'fecha_reagenda') return 'fecha_reagenda';\n    if (k === 'es_familiar') return 'es_familiar';\n    if (k === 'telefono_preferido') return 'telefono_preferido';\n    if (k === 'aceptacion') return 'aceptacion';\n    if (k === 'contactoefectivo') return 'contactoefectivo';\n    if (k === 'contactoalo') return 'contactoalo';\n    if (k === 'sentimiento_cliente' || k === 'sentimiento') return 'sentimiento';\n    if (k === 'resumen_llamada' || k === 'resumen') return 'resumen_llamada';\n    return null;\n  };\n\n  const processData = (data) => {\n    if (data == null) return;\n    if (typeof data === 'string') {\n      const s = data.trim();\n      if ((s.startsWith('{') && s.endsWith('}')) || (s.startsWith('[') && s.endsWith(']'))) {\n        try { processData(JSON.parse(s)); } catch (_) {}\n      }\n      return;\n    }\n    if (Array.isArray(data)) return data.forEach(processData);\n    if (typeof data !== 'object') return;\n\n    if (Object.prototype.hasOwnProperty.call(data, 'name') && Object.prototype.hasOwnProperty.call(data, 'result')) {\n      const mapped = mapKey(data.name);\n      if (mapped) setField(mapped, data.result);\n      processData(data.result);\n    }\n\n    for (const [key, val] of Object.entries(data)) {\n      const mapped = mapKey(key);\n      if (mapped) setField(mapped, val);\n      if (val && typeof val === 'object') processData(val);\n      if (typeof val === 'string') {\n        const s = val.trim();\n        if ((s.startsWith('{') && s.endsWith('}')) || (s.startsWith('[') && s.endsWith(']'))) {\n          try { processData(JSON.parse(s)); } catch (_) {}\n        }\n      }\n    }\n  };\n\n  processData(root.structuredOutputs);\n  processData(root.artifact?.structuredOutputs);\n  processData(root.message?.artifact?.structuredOutputs);\n  processData(root.analysis?.structuredData);\n  (root.artifact?.messages || []).forEach(m => {\n    if (m && m.role === 'tool') {\n      if (m.name) processData({ name: m.name, result: m.result });\n      processData(m.result);\n    }\n  });\n\n  Object.assign(item.json, extracted);\n\n  const raw = String(item.json.num_operacion ?? item.json.metadata?.num_operacion ?? '').trim();\n  if (!raw) {\n    item.json.query = \"SELECT 'skip_update_sin_num_operacion' AS status;\";\n    item.json.status_sugerido = item.json.status_sugerido || 'IGNORE';\n    return item;\n  }\n\n  const isFinalEvent = String(item.json.event_type || '').toLowerCase() === 'end-of-call-report';\n  const idLlamadaRaw = String(item.json.id_llamada || item.json.callId || item.json.id || '').trim();\n  const hasIdLlamada = idLlamadaRaw !== '';\n  const hasCierre = !!(item.json.endedAt || item.json.endedReason || item.json.hora_fin_llamada || item.json.ultimo_resultado_llamada || item.json.endedcall);\n  item.json.es_llamada_real = hasIdLlamada && hasCierre;\n  if (!isFinalEvent) {\n    item.json.query = \"SELECT 'skip_non_final_event' AS status;\";\n    item.json.status_sugerido = 'IGNORE';\n    return item;\n  }\n\n  if (lastAgentType === 'COBROS' && !['customer-ended-call', 'assistant-ended-call', 'assistant-forwarded-call', 'hangup'].includes(evtReason) && evtReason !== '') {\n    item.json.mapped_by_phonerule = true;\n    item.json.status_sugerido = cfg.states.retry;\n  }\n\n  const isRetryableNom = cfg.retryNomenclaturas.includes(String(item.json.nomenclatura || '').toUpperCase());\n  const isClosureCode = ['COMPAGO', 'COMPAGOASECORP'].includes(String(item.json.codigo_respuesta || ''));\n  if (!item.json.status_sugerido) {\n    item.json.status_sugerido = (isRetryableNom && !isClosureCode) ? cfg.states.retry : 'FINAL';\n  }\n\n  const numOperacion = raw.replace(/'/g, \"''\");\n  const estadoFinalFlujo = item.json.status_sugerido === 'FINAL' ? cfg.states.done : cfg.states.retry;\n  const fechaReagendaRaw = item.json.reintentar_iso || item.json.fecha_reagenda || null;\n  const fechaReagendaSql = (fechaReagendaRaw == null || String(fechaReagendaRaw).trim() === '')\n    ? `NOW() + INTERVAL '${(cfg.runtime.timeOffsetMinutes||0) + 30} minutes'`\n    : `'${String(fechaReagendaRaw).replace(/'/g, \"''\")}'::timestamptz`;\n\n  const fechaGestionRaw = item.json.hora_fin_llamada || item.json.fecha_gestion || item.json.endedAt || item.json.endedcall || null;\n  const fechaGestionSql = (fechaGestionRaw == null || String(fechaGestionRaw).trim() === '')\n    ? `NOW() + INTERVAL '${cfg.runtime.timeOffsetMinutes||0} minutes'`\n    : `'${String(fechaGestionRaw).replace(/'/g, \"''\")}'::timestamptz`;\n\n  const telRaw = item.json.numero_telefono || item.json.telefono_preferido || item.json.telefono_actual || null;\n  const telSql = (telRaw == null || String(telRaw).trim() === '') ? 'NULL' : `'${String(telRaw).replace(/'/g, \"''\")}'`;\n\n  const contactoAloSi = String(item.json.contactoalo || '').trim().toLowerCase() === 'si';\n  const estado = contactoAloSi ? cfg.states.done : estadoFinalFlujo;\n  const setFechaReagenda = estado === cfg.states.retry ? fechaReagendaSql : 'NULL';\n  const endRes = String(item.json.endedReason || item.json.event_type || '').replace(/'/g, \"''\");\n\n  item.json.query = `UPDATE ${cfg.db.schema}.${cfg.db.table}\n          SET estado_flujo = '${estado}',\n              fecha_reagenda = ${setFechaReagenda},\n              fecha_ultima_llamada = ${fechaGestionSql},\n              ultimo_resultado_llamada = '${endRes}',\n              telefono_preferido = CASE WHEN ${contactoAloSi ? 'TRUE' : 'FALSE'} AND ${telSql} IS NOT NULL THEN ${telSql} ELSE telefono_preferido END,\n              telefono_index = CASE WHEN ${contactoAloSi ? 'TRUE' : 'FALSE'} THEN 0 ELSE telefono_index END,\n              updated_at = NOW()\n          WHERE num_operacion = '${numOperacion}'\n          RETURNING num_operacion, estado_flujo, fecha_reagenda, 'updated_by_cierre' AS status, ${item.json.es_llamada_real ? 'TRUE' : 'FALSE'} AS es_llamada_real;`;\n\n  return item;\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -34740,
+        6180
+      ],
+      "id": "cf7b0450-0466-4e89-b4e9-0c717a75143c",
+      "name": "GENERAR QUERY CIERRE"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ (() => {\n  const cfg = $items('CONFIG INICIAL', 0, 0)[0].json.cfg;\n  const raw = String($json.num_operacion ?? $json.metadata?.num_operacion ?? '').trim();\n  if (!raw) return \"SELECT 'skip_update_sin_num_operacion' AS status\";\n\n  const eventType = String($json.event_type || '').toLowerCase();\n  const isFinalEvent = eventType === 'end-of-call-report';\n  if (!isFinalEvent) {\n    return `SELECT '${raw.replace(/'/g, \"''\")}' AS num_operacion, 'skip_non_final_event' AS status, false AS es_llamada_real`;\n  }\n\n  const numOperacion = raw.replace(/'/g, \"''\");\n  const estadoSugerido = String($json.status_sugerido || '').replace(/'/g, \"''\");\n  const estadoFinalFlujo = estadoSugerido === 'FINAL' ? cfg.states.done : cfg.states.retry;\n  \n  let recallMin = 30;\n  if ($json.mapped_by_phonerule && $json.phone_rule_recall_min !== undefined) {\n      recallMin = Number($json.phone_rule_recall_min) || 0;\n  }\n\n  const fechaReagendaRaw = $json.reintentar_iso || $json.fecha_reagenda || null;\n  const fechaReagendaSql = (fechaReagendaRaw == null || String(fechaReagendaRaw).trim() === '')\n    ? `NOW() + INTERVAL '${recallMin} minutes'`\n    : `'${String(fechaReagendaRaw).replace(/'/g, \"''\")}'::timestamptz`;\n\n  const fechaGestionRaw = $json.hora_fin_llamada || $json.fecha_gestion || $json.endedAt || $json.endedcall || null;\n  const fechaGestionSql = (fechaGestionRaw == null || String(fechaGestionRaw).trim() === '')\n    ? 'NOW()'\n    : `'${String(fechaGestionRaw).replace(/'/g, \"''\")}'::timestamptz`;\n\n  const telRaw = $json.numero_telefono || $json.telefono_preferido || $json.telefono_actual || null;\n  const telSql = (telRaw == null || String(telRaw).trim() === '') ? 'NULL' : `'${String(telRaw).replace(/'/g, \"''\")}'`;\n\n  const aceptacionSi = String($json.aceptacion || '').trim().toLowerCase() === 'si';\n  const contactoAloSi = String($json.contactoalo || '').trim().toLowerCase() === 'si';\n  const estado = contactoAloSi ? cfg.states.done : estadoFinalFlujo;\n\n  const fechaPromRaw = $json.fecha_promesa;\n  const fechaPromSql = (fechaPromRaw == null || String(fechaPromRaw).trim() === '') ? 'NULL' : `'${String(fechaPromRaw).replace(/'/g, \"''\")}'::date`;\n\n  const montoPromNum = Number($json.monto_promesa);\n  const montoPromSql = Number.isFinite(montoPromNum) ? String(montoPromNum) : 'NULL';\n\n  const setFechaReagenda = estado === cfg.states.retry ? fechaReagendaSql : 'NULL';\n\n  const idLlamadaRaw = String($json.id_llamada || $json.callId || $json.id || '').trim();\n  const hasIdLlamada = idLlamadaRaw !== '';\n  const hasCierre = !!($json.endedAt || $json.endedReason || $json.hora_fin_llamada || $json.ultimo_resultado_llamada);\n  const esLlamadaReal = hasIdLlamada && hasCierre;\n  const idLlamadaSql = hasIdLlamada ? `'${idLlamadaRaw.replace(/'/g, \"''\")}'` : 'NULL';\n  \n  const endRes = String($json.endedReason || $json.event_type || '').replace(/'/g, \"''\");\n  const setUltRes = `'${endRes}'`;\n\n  return `UPDATE ${cfg.db.schema}.${cfg.db.table}\n          SET estado_flujo = '${estado}',\n              fecha_reagenda = ${setFechaReagenda},\n              fecha_ultima_llamada = ${fechaGestionSql},\n              ultimo_resultado_llamada = ${setUltRes},\n              telefono_preferido = CASE WHEN ${contactoAloSi ? 'TRUE' : 'FALSE'} AND ${telSql} IS NOT NULL THEN ${telSql} ELSE telefono_preferido END,\n              telefono_index = CASE WHEN ${contactoAloSi ? 'TRUE' : 'FALSE'} THEN 0 ELSE telefono_index END,\n              fecha_promesa = CASE WHEN ${aceptacionSi ? 'TRUE' : 'FALSE'} AND ${fechaPromSql} IS NOT NULL THEN ${fechaPromSql} ELSE fecha_promesa END,\n              monto_promesa = CASE WHEN ${aceptacionSi ? 'TRUE' : 'FALSE'} AND ${montoPromSql} IS NOT NULL THEN ${montoPromSql} ELSE monto_promesa END,\n              updated_at = NOW()\n          WHERE num_operacion = '${numOperacion}'\n          RETURNING num_operacion, estado_flujo, fecha_reagenda, ${idLlamadaSql}::text AS id_llamada, ${fechaGestionSql} AS hora_fin_llamada, '${eventType.replace(/'/g, \"''\")}'::text AS event_type, ${esLlamadaReal ? 'TRUE' : 'FALSE'} AS es_llamada_real, 'updated_by_cierre' AS status;`;\n})() }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -34740,
+        6360
+      ],
+      "id": "83c9b588-064f-4c6e-b15b-1bd3b5f34c21",
+      "name": "ACTUALIZA REGISTRO MAESTRO1",
+      "credentials": {
+        "postgres": {
+          "id": "Iz7EEp0WgJu3LXhn",
+          "name": "Gea_postgress"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "evt_type",
+              "leftValue": "={{ String($json.event_type || \"\").toLowerCase() }}",
+              "rightValue": "end-of-call-report",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "evt_endedAt",
+              "leftValue": "={{ $json.endedAt || $json.hora_fin_llamada || null }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "evt_endedReason",
+              "leftValue": "={{ $json.endedReason || $json.ultimo_resultado_llamada || null }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -35860,
+        6160
+      ],
+      "id": "baf76822-a033-4a87-b75e-6745108f78ac",
+      "name": "ES EVENTO CIERRE VALIDO1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Cierre VAPI": {
+      "main": [
+        [
+          {
+            "node": "CONFIG INICIAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CONFIG INICIAL": {
+      "main": [
+        [
+          {
+            "node": "NORMALIZA EVENTO CIERRE VAPI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "NORMALIZA EVENTO CIERRE VAPI": {
+      "main": [
+        [
+          {
+            "node": "ES EVENTO CIERRE VALIDO1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PROCESA LOS NUMEROS Y FORMATEA1": {
+      "main": [
+        [
+          {
+            "node": "Establece los valores a guardar1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Establece los valores a guardar1": {
+      "main": [
+        [
+          {
+            "node": "MAPEO REGLAS DE MARCADO1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FALLBACK ACTUALIZA ESTADO1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MAPEO REGLAS DE MARCADO1": {
+      "main": [
+        [
+          {
+            "node": "SI EL ESTADO ES PENDIENTE O REINTENTAR1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FALLBACK ACTUALIZA ESTADO1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SI EL ESTADO ES PENDIENTE O REINTENTAR1": {
+      "main": [
+        [
+          {
+            "node": "mapea los campos del cliente1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "mapea los campos del cliente1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "mapea los campos del cliente1": {
+      "main": [
+        [
+          {
+            "node": "ACTUALIZA REGISTRO MAESTRO1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FALLBACK ACTUALIZA ESTADO1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ES LLAMADA REAL1": {
+      "main": [
+        [
+          {
+            "node": "GUARDAR REPORTE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IGNORAR EVENTO NO FINAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GUARDAR REPORTE": {
+      "main": [
+        [
+          {
+            "node": "REPORTE GESTION COMPLETO1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FALLBACK ACTUALIZA ESTADO1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "REPORTE GESTION COMPLETO1": {
+      "main": [
+        [
+          {
+            "node": "GUARDA REPORTE GESTION1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ACTUALIZA REGISTRO MAESTRO1": {
+      "main": [
+        [
+          {
+            "node": "ES LLAMADA REAL1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ES EVENTO CIERRE VALIDO1": {
+      "main": [
+        [
+          {
+            "node": "PROCESA LOS NUMEROS Y FORMATEA1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IGNORAR EVENTO NO FINAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "87792400-e320-4734-8ac7-a7d7c89dc3a6",
+  "meta": {
+    "instanceId": "915a7f7568d882a64f47657d6f3fab09c88f51183cb22a1bfa48ee39cc137bcd"
+  },
+  "id": "V8Rw59EQPwMcCYq1",
+  "tags": []
+}

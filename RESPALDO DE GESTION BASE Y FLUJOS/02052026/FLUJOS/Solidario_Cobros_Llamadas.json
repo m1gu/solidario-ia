@@ -1,0 +1,1663 @@
+{
+  "name": "Solidario-Cobros-Llamadas",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  const cfg = {\n    runtime: { testMode: false, timeOffsetMinutes: 0 },\n    db: { schema: 'public', table: 'solidario_registros', pk: 'num_operacion' },\n    states: { pending: 'PENDIENTE', inProgress: 'EN_PROCESO', retry: 'REINTENTAR', done: 'FINALIZADO' },\n    agents: { COBROS: 'dbb81b6f-8e6b-4b18-9db6-6a4fcf9dca37', PREVENTIVA: 'aa95f1ca-a21a-4445-b7ff-bc414774d805' },\n    vapi: { baseUrl: 'https://api.vapi.ai', apiKey: '484afd71-2703-4852-8580-9629620dde82', phoneNumberId: '09d4e6e1-6b8d-45a5-9c7b-10bd06999040', sip: '0', campaignId: 'SOLIDARIO_COBROS' },\n    policyPreventiva: {\n      TZ: 'America/Guayaquil', CC: '+593', maxDailyTries: 3, maxLifetimeTries: 30, offHoursWait: 30, waitAfterRetryMin: 30,\n      windows: [\n        { id: 'LUN_VIE_0800_1200', days: '1,2,3,4,5', start: '08:00', end: '12:00', max: 3, wait: 30, phones: 'telefono_preferido,telefono1,telefono2,telefono3,telefono4,telefono5,telefono6,telefono,tel1,tel2,tel3,tel4,tel5,tel6' },\n        { id: 'LUN_VIE_1201_1600', days: '1,2,3,4,5', start: '12:01', end: '16:00', max: 3, wait: 30, phones: 'telefono_preferido,telefono1,telefono2,telefono3,telefono4,telefono5,telefono6,telefono,tel1,tel2,tel3,tel4,tel5,tel6' },\n        { id: 'LUN_VIE_1601_2000', days: '1,2,3,4,5', start: '16:01', end: '20:00', max: 3, wait: 30, phones: 'telefono_preferido,telefono1,telefono2,telefono3,telefono4,telefono5,telefono6,telefono,tel1,tel2,tel3,tel4,tel5,tel6' },\n        { id: 'SAB_0800_1300', days: '6', start: '08:00', end: '13:00', max: 3, wait: 30, phones: 'telefono_preferido,telefono1,telefono2,telefono3,telefono4,telefono5,telefono6,telefono,tel1,tel2,tel3,tel4,tel5,tel6' }\n      ]\n    },\n    policyCobros: {\n      TZ: 'America/Guayaquil', CC: '+593', maxLifetimeTries: 28, phaseThreshold: 14, recallBetweenPhases: 240,\n      phase1: {\n        maxTries: 30,\n        windows: [\n          { id: 'P1_LV_0800_2000', days: '1,2,3,4,5', start: '08:00', end: '20:00', phones: 'telefono_preferido,telefono5,telefono6,telefono3,telefono4,telefono1,telefono2' },\n          { id: 'P1_SAB_0800_1300', days: '6', start: '08:00', end: '13:00', phones: 'telefono_preferido,telefono5,telefono6,telefono3,telefono4,telefono1,telefono2' }\n        ]\n      },\n      phase2: {\n        maxTries: 14,\n        windows: [\n          { id: 'P2_LV_0800_0859', days: '1,2,3,4,5', start: '08:00', end: '08:59', phones: 'telefono_preferido,telefono5,telefono6,telefono3,telefono4,telefono1,telefono2' },\n          { id: 'P2_LV_0900_1759', days: '1,2,3,4,5', start: '09:00', end: '17:59', phones: 'telefono_preferido,telefono5,telefono6,telefono3,telefono4' },\n          { id: 'P2_LV_1800_2000', days: '1,2,3,4,5', start: '18:00', end: '20:00', phones: 'telefono_preferido,telefono5,telefono6,telefono3,telefono4,telefono1,telefono2' },\n          { id: 'P2_SAB_0800_1300', days: '6', start: '08:00', end: '13:00', phones: 'telefono_preferido,telefono5,telefono6,telefono3,telefono4,telefono1,telefono2' },\n          { id: 'P2_SAB_1201_2000', days: '6', start: '12:01', end: '20:00', phones: 'telefono_preferido,telefono5,telefono6,telefono3,telefono4,telefono1,telefono2' }\n        ]\n      },\n      phoneRules: {\n        'customer-busy':           { recall: 5, maxRetries: 4, advancePhone: false, nom: 'CONTACTO FALLIDO NO JUSTIFICADO', cod: 'OCU08', mot: 'OCUPADO' },\n        'busy':                    { recall: 5, maxRetries: 4, advancePhone: false, nom: 'CONTACTO FALLIDO NO JUSTIFICADO', cod: 'OCU08', mot: 'OCUPADO' },\n        'no-answer':               { recall: 5, maxRetries: 4, advancePhone: false, nom: 'NO CONTACTO NO JUSTIFICADO', cod: 'NOCON05', mot: 'NO CONTESTAN' },\n        'call-not-answered':       { recall: 5, maxRetries: 4, advancePhone: false, nom: 'NO CONTACTO NO JUSTIFICADO', cod: 'NOCON05', mot: 'NO CONTESTAN' },\n        'customer-did-not-answer': { recall: 5, maxRetries: 4, advancePhone: false, nom: 'NO CONTACTO NO JUSTIFICADO', cod: 'NOCON05', mot: 'NO CONTESTAN' },\n        'silence-timed-out':       { recall: 5, maxRetries: 4, advancePhone: false, nom: 'NO CONTACTO NO JUSTIFICADO', cod: 'NOCON05', mot: 'NO CONTESTAN' },\n        'customer-speech-timeout': { recall: 5, maxRetries: 4, advancePhone: false, nom: 'NO CONTACTO NO JUSTIFICADO', cod: 'NOCON05', mot: 'NO CONTESTAN' },\n        'voicemail':               { recall: 5, maxRetries: 1, advancePhone: true, nom: 'NO CONTACTO NO JUSTIFICADO', cod: 'CONTESAUT', mot: 'CONTESTADOR AUTOMATICO' },\n        'voicemail-detected':      { recall: 5, maxRetries: 1, advancePhone: true, nom: 'NO CONTACTO NO JUSTIFICADO', cod: 'CONTESAUT', mot: 'CONTESTADOR AUTOMATICO' },\n        'answering-machine':       { recall: 5, maxRetries: 1, advancePhone: true, nom: 'NO CONTACTO NO JUSTIFICADO', cod: 'CONTESAUT', mot: 'CONTESTADOR AUTOMATICO' },\n        'machine-detected':        { recall: 5, maxRetries: 1, advancePhone: true, nom: 'NO CONTACTO NO JUSTIFICADO', cod: 'CONTESAUT', mot: 'CONTESTADOR AUTOMATICO' },\n        'voicemail-message-left':  { recall: 5, maxRetries: 1, advancePhone: true, nom: 'NO CONTACTO NO JUSTIFICADO', cod: 'CONTESAUT', mot: 'CONTESTADOR AUTOMATICO' },\n        'customer-rejected-call':  { recall: 0, maxRetries: 1, advancePhone: true, nom: 'CONTACTO FALLIDO NO JUSTIFICADO', cod: 'ERRENLALLA', mot: 'ERROR EN LA LLAMADA' },\n        'blocked':                 { recall: 0, maxRetries: 1, advancePhone: true, nom: 'CONTACTO FALLIDO NO JUSTIFICADO', cod: 'ERRENLALLA', mot: 'ERROR EN LA LLAMADA' },\n        'rejected':                { recall: 0, maxRetries: 1, advancePhone: true, nom: 'CONTACTO FALLIDO NO JUSTIFICADO', cod: 'ERRENLALLA', mot: 'ERROR EN LA LLAMADA' },\n        'compliance-rejected':     { recall: 0, maxRetries: 1, advancePhone: true, nom: 'CONTACTO FALLIDO NO JUSTIFICADO', cod: 'ERRENLALLA', mot: 'ERROR EN LA LLAMADA' },\n        'moderation-rejected':     { recall: 0, maxRetries: 1, advancePhone: true, nom: 'CONTACTO FALLIDO NO JUSTIFICADO', cod: 'ERRENLALLA', mot: 'ERROR EN LA LLAMADA' },\n        'failed':                  { recall: 5, maxRetries: 1, advancePhone: true, nom: 'NO CONTACTO JUSTIFICADO', cod: 'NUMAVE', mot: 'NUMERO AVERIADO' },\n        'connection-error':        { recall: 5, maxRetries: 1, advancePhone: true, nom: 'NO CONTACTO JUSTIFICADO', cod: 'NUMAVE', mot: 'NUMERO AVERIADO' },\n        'transport-error-':        { recall: 5, maxRetries: 1, advancePhone: true, nom: 'NO CONTACTO JUSTIFICADO', cod: 'NUMAVE', mot: 'NUMERO AVERIADO' },\n        'pipeline-error-':         { recall: 0, maxRetries: 0, advancePhone: true, nom: 'NO CONTACTO JUSTIFICADO', cod: 'NUMAVE', mot: 'NUMERO AVERIADO' },\n        'assistant-error-':        { recall: 0, maxRetries: 0, advancePhone: true, nom: 'NO CONTACTO JUSTIFICADO', cod: 'NUMAVE', mot: 'NUMERO AVERIADO' },\n        'unknown-error':           { recall: 0, maxRetries: 0, advancePhone: true, nom: 'NO CONTACTO JUSTIFICADO', cod: 'NUMAVE', mot: 'NUMERO AVERIADO' },\n        'server-url-':             { recall: 0, maxRetries: 0, advancePhone: true, nom: 'NO CONTACTO JUSTIFICADO', cod: 'NUMAVE', mot: 'NUMERO AVERIADO' },\n        'tool-call-':              { recall: 0, maxRetries: 0, advancePhone: true, nom: 'NO CONTACTO JUSTIFICADO', cod: 'NUMAVE', mot: 'NUMERO AVERIADO' }\n      },\n      phoneRuleDefault: { recall: 5, maxRetries: 1, advancePhone: true, nom: 'NO CONTACTO JUSTIFICADO', cod: 'NUMAVE', mot: 'NUMERO AVERIADO' }\n    },\n    calendar: { feriados: ['2026-04-30', '2026-05-01'] },\n    formats: { date: 'DD-MM-YYYY', time: 'HH:MM', luxonDate: 'dd-MM-yyyy', luxonTime: 'HH:mm' },\n    phoneFields: ['telefono_preferido','telefono1','telefono2','telefono3','telefono4','telefono5','telefono6','telefono','tel1','tel2','tel3','tel4','tel5','tel6'],\n    retryNomenclaturas: ['NO CONTACTO NO JUSTIFICADO','NO CONTACTO JUSTIFICADO','PENDIENTE DE ACEPTACION','CONTACTO FALLIDO NO JUSTIFICADO'],\n    noPhoneClassification: { nomenclatura: 'NO CONTACTO JUSTIFICADO', codigo_respuesta: 'NUMAVE', motivo: 'NUMERO AVERIADO' },\n    catalog: [\n      { nomenclatura: 'ACEPTACION', codigo_respuesta: 'NORECESTDECUE', motivo: 'NO RECIBE ESTADOS DE CUENTA' },\n      { nomenclatura: 'ACEPTACION', codigo_respuesta: 'PAGNOREG', motivo: 'PAGO NO REGISTRADO' },\n      { nomenclatura: 'CONTACTO FALLIDO JUSTIFICADO', codigo_respuesta: 'FAL03', motivo: 'FALLECIDO' },\n      { nomenclatura: 'CONTACTO FALLIDO JUSTIFICADO', codigo_respuesta: 'MSJTERCEROS', motivo: 'MENSAJE CON TERCEROS' },\n      { nomenclatura: 'CONTACTO FALLIDO JUSTIFICADO', codigo_respuesta: 'NOAYU', motivo: 'NO AYUDA' },\n      { nomenclatura: 'CONTACTO FALLIDO JUSTIFICADO', codigo_respuesta: 'NUMEQU', motivo: 'NUMERO EQUIVOCADO' },\n      { nomenclatura: 'CONTACTO FALLIDO NO JUSTIFICADO', codigo_respuesta: 'ERRENLALLA', motivo: 'ERROR EN LA LLAMADA' },\n      { nomenclatura: 'CONTACTO FALLIDO NO JUSTIFICADO', codigo_respuesta: 'OCU08', motivo: 'OCUPADO' },\n      { nomenclatura: 'NO ACEPTACION', codigo_respuesta: 'DESPROD', motivo: 'DESACUERDO POR DESCONOCIMIENTO EN LAS CONDICIONES DEL SERVICIO Y/O PRODUCTO' },\n      { nomenclatura: 'NO ACEPTACION', codigo_respuesta: 'DEUOTRPER', motivo: 'DEUDA ES DE OTRA PERSONA' },\n      { nomenclatura: 'NO ACEPTACION', codigo_respuesta: 'RESINGPERNOCOICO', motivo: 'INGRESO PERCIBIDO NO COINCIDE CON FECHA DE PAGO' },\n      { nomenclatura: 'NO ACEPTACION', codigo_respuesta: 'NOTIETRA', motivo: 'NO TIENE TRABAJO' },\n      { nomenclatura: 'NO ACEPTACION', codigo_respuesta: 'PRIAOTRDEU', motivo: 'PRIORIDAD A OTRAS DEUDAS' },\n      { nomenclatura: 'NO ACEPTACION', codigo_respuesta: 'RESEMESANCOV19', motivo: 'PASA POR UN PROBLEMA DE SALUD (SUYO O FAMILIAR)' },\n      { nomenclatura: 'NO ACEPTACION', codigo_respuesta: 'PROBLSALUD', motivo: 'PASA POR UN PROBLEMA (SUYO O FAMILIAR) DE SALUD, ACCIDENTE, VIAJE O CALAMIDAD' },\n      { nomenclatura: 'NO ACEPTACION', codigo_respuesta: 'RESROBDENEGOFRA', motivo: 'ROBO DE NEGOCIO O FRAUDE' },\n      { nomenclatura: 'NO ACEPTACION', codigo_respuesta: 'SINJUS', motivo: 'SIN JUSTIFICACION' },\n      { nomenclatura: 'NO ACEPTACION', codigo_respuesta: 'RESSUEATRMASDEUN', motivo: 'SUELDO ATRASADO MAS DE UN MES' },\n      { nomenclatura: 'NO ACEPTACION', codigo_respuesta: 'RESSUEMASBAJ-EST', motivo: 'SUELDO MAS BAJO - ESTA MAL SU NEGOCIO' },\n      { nomenclatura: 'NO ACEPTACION', codigo_respuesta: 'RESSUPDEIDE', motivo: 'SUPLANTACION DE IDENTIDAD' },\n      { nomenclatura: 'NO CONTACTO JUSTIFICADO', codigo_respuesta: 'CLIENELEXT', motivo: 'CLIENTE EN EL EXTERIOR' },\n      { nomenclatura: 'NO CONTACTO JUSTIFICADO', codigo_respuesta: 'NUMAVE', motivo: 'NUMERO AVERIADO' },\n      { nomenclatura: 'NO CONTACTO NO JUSTIFICADO', codigo_respuesta: 'CONTESAUT', motivo: 'CONTESTADOR AUTOMATICO' },\n      { nomenclatura: 'NO CONTACTO NO JUSTIFICADO', codigo_respuesta: 'NOCON05', motivo: 'NO CONTESTAN' },\n      { nomenclatura: 'PENDIENTE DE ACEPTACION', codigo_respuesta: 'RESAGECONTER', motivo: 'AGENDAMIENTO CONTACTO TERCERO' },\n      { nomenclatura: 'PENDIENTE DE ACEPTACION', codigo_respuesta: 'RESAGECONTIT', motivo: 'AGENDAMIENTO CONTACTO TITULAR' },\n      { nomenclatura: 'PENDIENTE DE ACEPTACION', codigo_respuesta: 'EXTIPAGO', motivo: 'ASESOR O GERENTE EXTIENDE PAGO' },\n      { nomenclatura: 'PENDIENTE DE ACEPTACION', codigo_respuesta: 'COMPAGOASECORP', motivo: 'COMPROMISO ASESOR CLIENTE CORPORATIVO' },\n      { nomenclatura: 'PENDIENTE DE ACEPTACION', codigo_respuesta: 'COMPAGO', motivo: 'COMPROMISO PAGO' },\n      { nomenclatura: 'PENDIENTE DE ACEPTACION', codigo_respuesta: 'PRECON', motivo: 'PREVIAMENTE CONTACTADO' },\n      { nomenclatura: 'PENDIENTE DE ACEPTACION', codigo_respuesta: 'RECDEFECDEPAG', motivo: 'RECORDATORIO DE FECHA DE PAGO' },\n      { nomenclatura: 'PENDIENTE DE ACEPTACION', codigo_respuesta: 'VIATEM', motivo: 'VIAJE TEMPORAL' }\n    ]\n  };\n  item.json.cfg = cfg;\n  return item;\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4380,
+        40
+      ],
+      "id": "5578371d-363f-4673-b2e4-9f74906ae9d2",
+      "name": "CONFIG INICIAL"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 20
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -4600,
+        40
+      ],
+      "id": "0e832aa4-0cd6-4a90-a8da-5d5ca334b42c",
+      "name": "EJECUTA ESTO CADA 20 SEG1"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ (() => {\n  const cfg = $items('CONFIG INICIAL', 0, 0)[0].json.cfg;\n  const offset = cfg.runtime.timeOffsetMinutes || 0;\n  const nowOffset = `now() + interval '${offset} minutes'`;\n  return `\n    WITH next_call AS (\n      SELECT c.num_operacion, timezone('${cfg.policyPreventiva.TZ}', ${nowOffset}) as now_local\n      FROM ${cfg.db.schema}.${cfg.db.table} c\n      WHERE (\n              c.estado_flujo IN ('${cfg.states.pending}', '${cfg.states.retry}')\n              AND (c.fecha_reagenda IS NULL OR c.fecha_reagenda <= ${nowOffset})\n            )\n         OR (\n              c.estado_flujo = '${cfg.states.done}'\n              AND c.fecha_vencimiento = timezone('${cfg.policyPreventiva.TZ}', ${nowOffset})::date\n              AND c.telefono_preferido IS NOT NULL\n              AND c.dias_retraso::int <= 0 \n            )\n      ORDER BY \n        CASE WHEN c.estado_flujo = '${cfg.states.done}' THEN 0 ELSE 1 END,\n        c.intentos_llamada ASC, \n        c.fecha_reagenda ASC NULLS FIRST\n      LIMIT 1\n      FOR UPDATE SKIP LOCKED\n    )\n    UPDATE ${cfg.db.schema}.${cfg.db.table} c\n    SET estado_flujo = '${cfg.states.inProgress}',\n        updated_at = ${nowOffset}\n    FROM next_call nc\n    WHERE c.num_operacion = nc.num_operacion\n    RETURNING c.*;\n  `;\n})() }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -4160,
+        40
+      ],
+      "id": "fb32cc06-1ac2-4c6c-8c32-c3a10277fe3d",
+      "name": "BUSCA Y MARCA COMO EN PROCESO1",
+      "alwaysOutputData": false,
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "postgres": {
+          "id": "Iz7EEp0WgJu3LXhn",
+          "name": "Gea_postgress"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "399d66fc-66e0-450c-ae4b-553e88da1105",
+              "leftValue": "={{ $json.num_operacion }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -3940,
+        40
+      ],
+      "id": "5f2b746e-2038-4e30-99ff-289c56528dca",
+      "name": "SI SE ENCONTRO EL ID DEL REGISTRO1"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -3460,
+        260
+      ],
+      "id": "b8ca41e0-583e-4f09-a9f0-468be81d20b2",
+      "name": "NO HACE NADA1"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  const lead = item.json;\n  const cfg = $items('CONFIG INICIAL', 0, 0)[0].json.cfg;\n\n  lead.system_payload = cfg.policy;\n  lead.num_operacion = String(lead.num_operacion ?? '').trim();\n  lead.nombre_completo = lead.nombre_completo || `${lead.nombre ?? ''} ${lead.apellido ?? ''}`.trim();\n  lead.intentos_llamada = Number(lead.intentos_llamada || 0);\n  lead.win_tries = Number(lead.win_tries || 0);\n  lead.telefono_index = Number(lead.telefono_index ?? 0);\n  lead.monto = Number(lead.monto ?? lead.valor ?? 0);\n  lead.fecha_vencimiento = lead.fecha_vencimiento || lead.fecha_maxima || null;\n\n  return item;\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3700,
+        -40
+      ],
+      "id": "a83fdc9e-0217-4f60-ab74-669034520671",
+      "name": "COMO DEBE LLAMAR EL BOT (POLITICAS)1"
+    },
+    {
+      "parameters": {
+        "jsCode": "function parseTime(timeStr, tz) {\n  const now = DateTime.now().setZone(tz);\n  const [h, m] = timeStr.split(':').map(Number);\n  return now.set({ hour: h, minute: m, second: 0, millisecond: 0 });\n}\n\nfunction findPhoneRule(reason, rules, defaultRule) {\n  if (!reason) return defaultRule;\n  for (const key in rules) {\n    if (key.endsWith('-') && reason.startsWith(key)) return rules[key];\n    if (reason === key) return rules[key];\n  }\n  return defaultRule;\n}\n\nreturn items.map(item => {\n  const cfg = $items('CONFIG INICIAL', 0, 0)[0].json.cfg;\n  const db = item.json || {};\n  let out = { ...db };\n  \n  const now = DateTime.now().setZone(cfg.policyPreventiva.TZ).plus({ minutes: cfg.runtime.timeOffsetMinutes || 0 });\n  const dow = now.weekday; // 1=Mon, 7=Sun\n  const todayIso = now.toFormat('yyyy-MM-dd');\n  \n  const isFeriado = cfg.calendar.feriados.includes(todayIso);\n  out.modo_operativo = (dow === 6 || isFeriado) ? 'informativo' : 'normal';\n  \n  const diasRaw = String(db.dias_retraso || '0').trim();\n  let diasNum = Number(diasRaw.replace('+', ''));\n  if (isNaN(diasNum)) diasNum = 0;\n  \n  if (diasRaw.includes('+') || diasRaw.includes('-')) {\n    out.agente_tipo = diasNum < 0 ? 'PREVENTIVA' : 'COBROS';\n  } else {\n    const fVenc = db.fecha_vencimiento ? DateTime.fromISO(db.fecha_vencimiento.substring(0, 10)).setZone(cfg.policyPreventiva.TZ) : now;\n    out.agente_tipo = (now <= fVenc) ? 'PREVENTIVA' : 'COBROS';\n  }\n  \n  out.assistant_id = out.agente_tipo === 'PREVENTIVA' ? cfg.agents.PREVENTIVA : cfg.agents.COBROS;\n  \n  const intentosRaw = Number(db.intentos_llamada) || 0;\n  const winTriesRaw = Number(db.win_tries) || 0;\n  const winStamp = String(db.win_stamp || '');\n  \n  out.intentos_llamada = intentosRaw;\n  out.win_tries = winTriesRaw;\n  out.win_stamp = winStamp;\n  out.puedeLlamar = false;\n  out.estado_flujo = db.estado_flujo || cfg.states.pending;\n  \n  if (dow === 7) {\n    out.puedeLlamar = false;\n    out.estado_flujo = cfg.states.retry;\n    out.reintentar_iso = now.plus({ days: 1 }).set({ hour: 8, minute: 0, second: 0 }).toUTC().toISO();\n    out.observacion_politica = 'Domingo no se marca';\n    return { json: out };\n  }\n\n  // ==== LOGICA PREVENTIVA ====\n  if (out.agente_tipo === 'PREVENTIVA') {\n    const pol = cfg.policyPreventiva;\n    if (intentosRaw >= pol.maxLifetimeTries) {\n      out.estado_flujo = cfg.states.done;\n      out.observacion_politica = 'Max lifetime tries alcanzado (PREVENTIVA)';\n      return { json: out };\n    }\n    \n    let activeWin = null;\n    let nextWin = null;\n    let minWaitMs = Infinity;\n    \n    for (const w of pol.windows) {\n      const days = w.days.split(',').map(Number);\n      if (!days.includes(dow)) continue;\n      const st = parseTime(w.start, pol.TZ);\n      const en = parseTime(w.end, pol.TZ);\n      if (now >= st && now <= en) { activeWin = w; break; }\n      if (st > now) {\n        const wait = st.diff(now).toMillis();\n        if (wait < minWaitMs) { minWaitMs = wait; nextWin = w; }\n      }\n    }\n    \n    if (!activeWin) {\n      out.estado_flujo = cfg.states.retry;\n      if (nextWin) out.reintentar_iso = parseTime(nextWin.start, pol.TZ).toUTC().toISO();\n      else out.reintentar_iso = now.plus({ days: dow === 6 ? 2 : 1 }).set({ hour: 8, minute: 0, second: 0 }).toUTC().toISO();\n      return { json: out };\n    }\n    \n    const curStamp = `${todayIso}:${activeWin.id}`;\n    if (winStamp !== curStamp) { out.win_stamp = curStamp; out.win_tries = 0; }\n    \n    if (out.win_tries >= activeWin.max) {\n      out.estado_flujo = cfg.states.retry;\n      if (nextWin) out.reintentar_iso = parseTime(nextWin.start, pol.TZ).toUTC().toISO();\n      else out.reintentar_iso = now.plus({ days: dow === 6 ? 2 : 1 }).set({ hour: 8, minute: 0, second: 0 }).toUTC().toISO();\n      return { json: out };\n    }\n    \n    out.puedeLlamar = true;\n    out.estado_flujo = cfg.states.inProgress;\n    out.activeWinPhones = activeWin.phones;\n    return { json: out };\n  }\n\n  // ==== LOGICA COBROS (2 FASES) ====\n  const pol = cfg.policyCobros;\n  if (intentosRaw >= pol.maxLifetimeTries) {\n    out.estado_flujo = cfg.states.done;\n    return { json: out };\n  }\n  \n  const phase = intentosRaw < pol.phaseThreshold ? 1 : 2;\n  const phaseConfig = phase === 1 ? pol.phase1 : pol.phase2;\n  const phaseAttempts = phase === 1 ? intentosRaw : intentosRaw - pol.phaseThreshold;\n  \n  if (phase === 2 && phaseAttempts === 0 && !winStamp.startsWith('P2:')) {\n    out.puedeLlamar = false;\n    out.estado_flujo = cfg.states.retry;\n    \n    let nextWinSt = null;\n    let minWaitMs = Infinity;\n    \n    for (const w of pol.phase2.windows) {\n      const days = w.days.split(',').map(Number);\n      if (!days.includes(dow)) continue;\n      const st = parseTime(w.start, pol.TZ);\n      if (st > now) {\n        const wait = st.diff(now).toMillis();\n        if (wait < minWaitMs) { minWaitMs = wait; nextWinSt = st; }\n      }\n    }\n    \n    const baseRecall = now.plus({ minutes: pol.recallBetweenPhases });\n    if (nextWinSt && nextWinSt > baseRecall) out.reintentar_iso = nextWinSt.toUTC().toISO();\n    else if (nextWinSt && nextWinSt <= baseRecall) out.reintentar_iso = baseRecall.toUTC().toISO();\n    else {\n      out.reintentar_iso = now.plus({ days: dow === 6 ? 2 : 1 }).set({ hour: 8, minute: 0, second: 0 }).toUTC().toISO();\n      const m = DateTime.fromISO(out.reintentar_iso);\n      if (baseRecall > m) out.reintentar_iso = baseRecall.toUTC().toISO();\n    }\n    \n    out.telefono_index = 0;\n    out.win_tries = 0;\n    return { json: out };\n  }\n  \n  let activeWin = null;\n  let nextWin = null;\n  let minWaitMs = Infinity;\n  \n  for (const w of phaseConfig.windows) {\n    const days = w.days.split(',').map(Number);\n    if (!days.includes(dow)) continue;\n    const st = parseTime(w.start, pol.TZ);\n    const en = parseTime(w.end, pol.TZ);\n    if (now >= st && now <= en) { activeWin = w; break; }\n    if (st > now) {\n      const wait = st.diff(now).toMillis();\n      if (wait < minWaitMs) { minWaitMs = wait; nextWin = w; }\n    }\n  }\n  \n  if (!activeWin) {\n    out.estado_flujo = cfg.states.retry;\n    if (nextWin) out.reintentar_iso = parseTime(nextWin.start, pol.TZ).toUTC().toISO();\n    else out.reintentar_iso = now.plus({ days: dow === 6 ? 2 : 1 }).set({ hour: 8, minute: 0, second: 0 }).toUTC().toISO();\n    return { json: out };\n  }\n  \n  const curStamp = `P${phase}:${todayIso}:${activeWin.id}`;\n  if (winStamp !== curStamp) out.win_stamp = curStamp;\n  \n  const lastRes = String(db.ultimo_resultado_llamada || '').toLowerCase();\n  const rule = findPhoneRule(lastRes, pol.phoneRules, pol.phoneRuleDefault);\n  \n  if (out.win_tries >= rule.maxRetries || rule.advancePhone) {\n    const phonesArr = activeWin.phones.split(',');\n    out.telefono_index = ((Number(db.telefono_index) || 0) + 1) % phonesArr.length;\n    out.win_tries = 0;\n  }\n  \n  out.puedeLlamar = true;\n  out.estado_flujo = cfg.states.inProgress;\n  out.activeWinPhones = activeWin.phones;\n  return { json: out };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3480,
+        -160
+      ],
+      "id": "4490f579-a789-430e-adc8-3b2be7ac925d",
+      "name": "POLITICAS Y REINTENTOS (RESPALDO)1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "af1a295f-9033-4eff-8b80-d54d2b9ec868",
+              "leftValue": "={{ $json.puedeLlamar }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -3260,
+        -220
+      ],
+      "id": "d6be1b19-9196-4a28-9593-8a09a742e0d0",
+      "name": "SI PUEDE LLAMAR (VERDADERO O FALSO)1"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  const db = item.json || {};\n  let phones = [];\n  const cfg = $items('CONFIG INICIAL', 0, 0)[0].json.cfg;\n  const CC = cfg.policyPreventiva.CC || '+593';\n  const allowedStr = String(item.json.activeWinPhones || cfg.phoneFields.join(','));\n  const phoneFields = allowedStr.split(',');\n\n  for (const field of phoneFields) {\n    const val = String(db[field] || '').replace(/\\D/g, '');\n    if (val.length >= 9) {\n      let e164 = val;\n      if (val.startsWith('0')) e164 = CC + val.substring(1);\n      else if (!val.startsWith('+')) e164 = CC + val;\n      if (!phones.find(p => p.e164 === e164)) phones.push({ field, e164 });\n    }\n  }\n\n  let selected = null;\n  const tIndex = Number(item.json.telefono_index || db.telefono_index || 0);\n\n  if (phones.length > 0) {\n    if (item.json.agente_tipo === 'COBROS') {\n      const idx = tIndex % phones.length;\n      selected = phones[idx];\n    } else {\n      const effIdx = Math.min(tIndex, phones.length - 1);\n      selected = phones[effIdx];\n    }\n  }\n\n  item.json.phones_parsed = phones;\n  item.json.selected_phone = selected;\n  item.json.telefono_actual = selected ? selected.e164 : '';\n  return item;\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3020,
+        -240
+      ],
+      "id": "fd4a50d1-591a-45fb-b7c0-aba6b5f7521f",
+      "name": "PROCESA LOS NUMEROS Y FORMATEA1"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "solidario_registros",
+          "cachedResultName": "solidario_registros"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "fecha_reagenda": "={{ $json.fecha_reagenda }}",
+            "win_stamp": "={{ $json.win_stamp }}",
+            "win_tries": "={{ $json.win_tries }}",
+            "intentos_llamada": "={{ $json.intentos_llamada ?? null }}",
+            "telefono_index": "={{ $json.telefono_index ?? null }}",
+            "dias_retraso": "={{ $json.dias_retraso }}",
+            "num_operacion": "={{ String($json.num_operacion || \"\") }}"
+          },
+          "matchingColumns": [
+            "num_operacion"
+          ],
+          "schema": [
+            {
+              "id": "num_operacion",
+              "displayName": "num_operacion",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "cedula",
+              "displayName": "cedula",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "nombre",
+              "displayName": "nombre",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "apellido",
+              "displayName": "apellido",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "telefono",
+              "displayName": "telefono",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "valor",
+              "displayName": "valor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "fecha_maxima",
+              "displayName": "fecha_maxima",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "producto",
+              "displayName": "producto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "observacion",
+              "displayName": "observacion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "nomenclatura",
+              "displayName": "nomenclatura",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "codigo_respuesta",
+              "displayName": "codigo_respuesta",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "motivo",
+              "displayName": "motivo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "fecha_gestion",
+              "displayName": "fecha_gestion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "sentimiento",
+              "displayName": "sentimiento",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "transcripcion_llamada",
+              "displayName": "transcripcion_llamada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "resumen_llamada",
+              "displayName": "resumen_llamada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "link_audio_vapi",
+              "displayName": "link_audio_vapi",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "id_llamada",
+              "displayName": "id_llamada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "estado_flujo",
+              "displayName": "estado_flujo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "fecha_reagenda",
+              "displayName": "fecha_reagenda",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "intentos_llamada",
+              "displayName": "intentos_llamada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ultimo_resultado_llamada",
+              "displayName": "ultimo_resultado_llamada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "fecha_ultima_llamada",
+              "displayName": "fecha_ultima_llamada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "win_stamp",
+              "displayName": "win_stamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "win_tries",
+              "displayName": "win_tries",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "telefono_index",
+              "displayName": "telefono_index",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "cedente",
+              "displayName": "cedente",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "canal",
+              "displayName": "canal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "fecha_promesa",
+              "displayName": "fecha_promesa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "monto_promesa",
+              "displayName": "monto_promesa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "fecha_reprogramada",
+              "displayName": "fecha_reprogramada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "es_familiar",
+              "displayName": "es_familiar",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "telefono_preferido",
+              "displayName": "telefono_preferido",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "duracion_llamada",
+              "displayName": "duracion_llamada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "aceptacion",
+              "displayName": "aceptacion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "hora_gestion",
+              "displayName": "hora_gestion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -2800,
+        100
+      ],
+      "id": "1ceefd57-9809-4380-b919-0d7dc41abfc1",
+      "name": "GUARDA REGISTRO Y CAMPAÃƒâ€˜A1",
+      "credentials": {
+        "postgres": {
+          "id": "Iz7EEp0WgJu3LXhn",
+          "name": "Gea_postgress"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ddfd4b58-508c-4eee-a89d-63cd426b24db",
+              "name": "fecha_reagenda",
+              "value": "={{ $json.reintentar_iso || null }}",
+              "type": "string"
+            },
+            {
+              "id": "837c82e3-7236-4ff6-b034-4b4bdab861ae",
+              "name": "estado_flujo",
+              "value": "={{ $json.status_sugerido === 'AGOTADO' ? $items('CONFIG INICIAL', 0, 0)[0].json.cfg.states.done : $items('CONFIG INICIAL', 0, 0)[0].json.cfg.states.retry }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -3040,
+        100
+      ],
+      "id": "ca198ab7-60b3-418e-82e9-e1977a8d33ad",
+      "name": "FORMATEA STATUS1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "71d6f329-2f85-4ba1-b581-2766d94ab22e",
+              "leftValue": "={{ $json.isOutOfNumbers }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -2740,
+        -200
+      ],
+      "id": "f9120b92-2dc1-4219-8de5-932669aef1c7",
+      "name": "SI NO ESTA FUERA DE LA LISTA DE NUMEROS DISPONIBLES1"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  const lead = item.json;\n  const cfg = $items('CONFIG INICIAL', 0, 0)[0].json.cfg;\n  const fallback = cfg.noPhoneClassification;\n\n  if (lead.hasPhonesOutsideWindow) {\n    const t = new Date();\n    t.setMinutes(t.getMinutes() + Number(cfg.policy.offHoursWait || 30));\n    lead.estado_flujo = cfg.states.retry;\n    lead.status_sugerido = 'REINTENTAR';\n    lead.fecha_reagenda = t.toISOString();\n    lead.reintentar_iso = lead.fecha_reagenda;\n    return item;\n  }\n\n  lead.estado_flujo = cfg.states.done;\n  lead.status_sugerido = 'FINAL';\n  lead.fecha_reagenda = null;\n  lead.nomenclatura = fallback.nomenclatura;\n  lead.codigo_respuesta = fallback.codigo_respuesta;\n  lead.motivo = fallback.motivo;\n  return item;\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2500,
+        -120
+      ],
+      "id": "780d061f-34b2-4354-9248-41ae864aa527",
+      "name": "CUANDO NO SE ENCONTRO NUMERO VALIDO1"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "solidario_registros",
+          "cachedResultName": "solidario_registros"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "num_operacion": "={{ String($json.num_operacion || '') }}",
+            "estado_flujo": "={{ $items('CONFIG INICIAL', 0, 0)[0].json.cfg.states.inProgress }}",
+            "win_stamp": "={{ $json.win_stamp }}",
+            "win_tries": "={{ Number($json.win_tries || 0) + 1 }}",
+            "telefono_index": "={{ Number($json.telefono_index || 0) + 1 }}",
+            "intentos_llamada": "={{ Number($json.intentos_llamada || 0) + 1 }}",
+            "fecha_ultima_llamada": "={{ $now }}",
+            "updated_at": "={{ $now }}"
+          },
+          "matchingColumns": [
+            "num_operacion"
+          ],
+          "schema": [
+            {
+              "id": "num_operacion",
+              "displayName": "num_operacion",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "cedula",
+              "displayName": "cedula",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "nombre",
+              "displayName": "nombre",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "apellido",
+              "displayName": "apellido",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "telefono",
+              "displayName": "telefono",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "valor",
+              "displayName": "valor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "fecha_maxima",
+              "displayName": "fecha_maxima",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "producto",
+              "displayName": "producto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "observacion",
+              "displayName": "observacion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "nomenclatura",
+              "displayName": "nomenclatura",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "codigo_respuesta",
+              "displayName": "codigo_respuesta",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "motivo",
+              "displayName": "motivo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "fecha_gestion",
+              "displayName": "fecha_gestion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "sentimiento",
+              "displayName": "sentimiento",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "transcripcion_llamada",
+              "displayName": "transcripcion_llamada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "resumen_llamada",
+              "displayName": "resumen_llamada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "link_audio_vapi",
+              "displayName": "link_audio_vapi",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "id_llamada",
+              "displayName": "id_llamada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "estado_flujo",
+              "displayName": "estado_flujo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "fecha_reagenda",
+              "displayName": "fecha_reagenda",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "intentos_llamada",
+              "displayName": "intentos_llamada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ultimo_resultado_llamada",
+              "displayName": "ultimo_resultado_llamada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "fecha_ultima_llamada",
+              "displayName": "fecha_ultima_llamada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "win_stamp",
+              "displayName": "win_stamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "win_tries",
+              "displayName": "win_tries",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "telefono_index",
+              "displayName": "telefono_index",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "cedente",
+              "displayName": "cedente",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "canal",
+              "displayName": "canal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "fecha_promesa",
+              "displayName": "fecha_promesa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "monto_promesa",
+              "displayName": "monto_promesa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "fecha_reprogramada",
+              "displayName": "fecha_reprogramada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "es_familiar",
+              "displayName": "es_familiar",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "telefono_preferido",
+              "displayName": "telefono_preferido",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "duracion_llamada",
+              "displayName": "duracion_llamada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "aceptacion",
+              "displayName": "aceptacion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "hora_gestion",
+              "displayName": "hora_gestion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -2480,
+        -320
+      ],
+      "id": "4fb5ae65-5112-4eb2-90a4-99b16161e091",
+      "name": "GUARDA REGISTRO1",
+      "retryOnFail": true,
+      "credentials": {
+        "postgres": {
+          "id": "Iz7EEp0WgJu3LXhn",
+          "name": "Gea_postgress"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "solidario_registros",
+          "cachedResultName": "solidario_registros"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "fecha_reagenda": "={{ $json.fecha_reagenda }}",
+            "intentos_llamada": "={{ Number($json.intentos_llamada || 0) }}",
+            "win_tries": "={{ Number($json.win_tries || 0) }}",
+            "telefono_index": "={{ Number($json.telefono_index || 0) }}",
+            "num_operacion": "={{ String($json.num_operacion || \"\") }}",
+            "updated_at": "={{ $now }}",
+            "monto": 0,
+            "monto_promesa": 0
+          },
+          "matchingColumns": [
+            "num_operacion"
+          ],
+          "schema": [
+            {
+              "id": "num_operacion",
+              "displayName": "num_operacion",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "cedula",
+              "displayName": "cedula",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "nombre",
+              "displayName": "nombre",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "apellido",
+              "displayName": "apellido",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "telefono1",
+              "displayName": "telefono1",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "telefono2",
+              "displayName": "telefono2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "telefono3",
+              "displayName": "telefono3",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "telefono4",
+              "displayName": "telefono4",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "telefono5",
+              "displayName": "telefono5",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "telefono6",
+              "displayName": "telefono6",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "monto",
+              "displayName": "monto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "fecha_vencimiento",
+              "displayName": "fecha_vencimiento",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "producto",
+              "displayName": "producto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "nombre_cc",
+              "displayName": "nombre_cc",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "fecha_promesa",
+              "displayName": "fecha_promesa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "monto_promesa",
+              "displayName": "monto_promesa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "estado_flujo",
+              "displayName": "estado_flujo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "fecha_reagenda",
+              "displayName": "fecha_reagenda",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "win_stamp",
+              "displayName": "win_stamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "win_tries",
+              "displayName": "win_tries",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "intentos_llamada",
+              "displayName": "intentos_llamada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "telefono_index",
+              "displayName": "telefono_index",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "telefono_preferido",
+              "displayName": "telefono_preferido",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "fecha_ultima_llamada",
+              "displayName": "fecha_ultima_llamada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "dias_retraso",
+              "displayName": "dias_retraso",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -2240,
+        120
+      ],
+      "id": "19699645-d867-43fa-9806-4ed86ca15268",
+      "name": "GUARDA REPORTE1",
+      "credentials": {
+        "postgres": {
+          "id": "Iz7EEp0WgJu3LXhn",
+          "name": "Gea_postgress"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $items('CONFIG INICIAL', 0, 0)[0].json.cfg.runtime.testMode ? 'https://n8nps.plusservices.ec/webhook/solidario-simulador' : 'https://api.vapi.ai/call' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $items('CONFIG INICIAL', 0, 0)[0].json.cfg.vapi.apiKey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"type\": \"outboundPhoneCall\",\n  \"name\": \"Llamada {{ $node['POLITICAS Y REINTENTOS (RESPALDO)1'].json.agente_tipo || $json.agente_tipo || 'COBROS' }} - {{ $json.num_operacion }}\",\n  \"assistantId\": \"{{ (() => { const cfg = $items('CONFIG INICIAL', 0, 0)[0].json.cfg; const tipo = $node['POLITICAS Y REINTENTOS (RESPALDO)1'].json.agente_tipo || $json.agente_tipo || 'COBROS'; const id = cfg.agents?.[tipo] || cfg.agents?.COBROS || ''; return String(id); })() }}\",\n  \"phoneNumberId\": \"{{ $items('CONFIG INICIAL', 0, 0)[0].json.cfg.vapi.phoneNumberId }}\",\n  \"customer\": {\n    \"number\": \"{{ $node['PROCESA LOS NUMEROS Y FORMATEA1'].json.telefono_actual }}\",\n    \"name\": \"{{ ($json.nombre_completo || (($json.nombre || '') + ' ' + ($json.apellido || '')).trim()) }}\"\n  },\n  \"metadata\": {\n    \"num_operacion\": \"{{ $json.num_operacion }}\",\n    \"cedula\": \"{{ $json.cedula }}\",\n    \"agente_tipo\": \"{{ $node['POLITICAS Y REINTENTOS (RESPALDO)1'].json.agente_tipo || $json.agente_tipo || 'COBROS' }}\"\n  },\n  \"assistantOverrides\": {\n    \"variableValues\": {\n      \"sip\": \"{{ $items('CONFIG INICIAL', 0, 0)[0].json.cfg.vapi.sip }}\",\n      \"num_operacion\": \"{{ $json.num_operacion }}\",\n      \"cedula\": \"{{ $json.cedula }}\",\n      \"nombre\": \"{{ $json.nombre }}\",\n      \"nombre_cliente\": \"{{ ($json.nombre_completo || (($json.nombre || '') + ' ' + ($json.apellido || '')).trim()) }}\",\n      \"producto\": \"{{ String($json.producto || '').trim().toUpperCase() === 'UNICREDITO' ? 'BANCO SOLIDARIO' : ($json.producto || '') }}\",\n      \"nombre_cc\": \"{{ $json.nombre_cc ?? '' }}\",\n      \"modo\": \"{{ $node['POLITICAS Y REINTENTOS (RESPALDO)1'].json.modo_operativo || 'normal' }}\",\n      \"MODO\": \"{{ $node['POLITICAS Y REINTENTOS (RESPALDO)1'].json.modo_operativo || 'normal' }}\",\n      \"valor\": \"{{ $json.monto ?? $json.valor }}\",\n      \"tope50porciento\": \"{{ Number($json.monto ?? $json.valor ?? 0) * 0.50 }}\",\n      \"tope30porciento\": \"{{ Number($json.monto ?? $json.valor ?? 0) * 0.30 }}\",\n      \"dias_retraso\": \"{{ $node['PROCESA LOS NUMEROS Y FORMATEA1'].json.dias_retraso ?? 0 }}\",\n      \"fecha_maxima\": \"{{ $json.fecha_vencimiento ?? $json.fecha_maxima }}\",\n      \"dia_actual\": \"{{ (() => { const cfg = $items('CONFIG INICIAL', 0, 0)[0].json.cfg; const tz = cfg.policy?.TZ || 'America/Guayaquil'; const now = new Date(new Date().toLocaleString('en-US', { timeZone: tz })); const dows = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']; const mons = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; const dd = String(now.getDate()).padStart(2, '0'); return `${dows[now.getDay()]} ${mons[now.getMonth()]} ${dd} ${now.getFullYear()} 00:00:00 GMT-0500 (Ecuador Time)`; })() }}\",\n      \"telefono\": \"{{ $node['PROCESA LOS NUMEROS Y FORMATEA1'].json.telefono_actual }}\",\n      \"agente_tipo\": \"{{ $node['POLITICAS Y REINTENTOS (RESPALDO)1'].json.agente_tipo || $json.agente_tipo || 'COBROS' }}\"\n    }\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2180,
+        -100
+      ],
+      "id": "7fb599bb-9d2e-4170-9958-83056ee23fb9",
+      "name": "AGENTE CUENTA1",
+      "retryOnFail": true,
+      "alwaysOutputData": false,
+      "maxTries": 5,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ (() => {\n  const cfg = $items('CONFIG INICIAL', 0, 0)[0].json.cfg;\n  const raw = String($json.num_operacion ?? $items('BUSCA Y MARCA COMO EN PROCESO1', 0, 0)[0].json.num_operacion ?? '').trim();\n  if (!raw) return `SELECT 'skip_fallback_sin_num_operacion' AS status`;\n\n  const numOperacion = raw.replace(/'/g, \"''\");\n\n  const hasSnapshot = [\n    $json.snapshot_estado_flujo,\n    $json.snapshot_fecha_reagenda,\n    $json.snapshot_intentos_llamada,\n    $json.snapshot_win_tries,\n    $json.snapshot_telefono_index,\n    $json.snapshot_win_stamp,\n    $json.snapshot_fecha_ultima_llamada,\n    $json.snapshot_telefono_preferido,\n    $json.snapshot_fecha_promesa,\n    $json.snapshot_monto_promesa,\n  ].some(v => v !== undefined);\n\n  if (hasSnapshot) {\n    const snapEstado = String($json.snapshot_estado_flujo ?? cfg.states.pending ?? 'PENDIENTE').replace(/'/g, \"''\");\n\n    const snapFechaReagendaRaw = $json.snapshot_fecha_reagenda;\n    const snapFechaReagendaSql = (snapFechaReagendaRaw == null || String(snapFechaReagendaRaw).trim() === '')\n      ? 'NULL'\n      : ` '${String(snapFechaReagendaRaw).replace(/'/g, \"''\")}'::timestamptz `;\n\n    const snapFechaUltRaw = $json.snapshot_fecha_ultima_llamada;\n    const snapFechaUltSql = (snapFechaUltRaw == null || String(snapFechaUltRaw).trim() === '')\n      ? 'NULL'\n      : ` '${String(snapFechaUltRaw).replace(/'/g, \"''\")}'::timestamptz `;\n\n    const snapTelPrefRaw = $json.snapshot_telefono_preferido;\n    const snapTelPrefSql = (snapTelPrefRaw == null || String(snapTelPrefRaw).trim() === '')\n      ? 'NULL'\n      : ` '${String(snapTelPrefRaw).replace(/'/g, \"''\")}' `;\n\n    const snapFechaPromRaw = $json.snapshot_fecha_promesa;\n    const snapFechaPromSql = (snapFechaPromRaw == null || String(snapFechaPromRaw).trim() === '')\n      ? 'NULL'\n      : ` '${String(snapFechaPromRaw).replace(/'/g, \"''\")}'::date `;\n\n    const snapMontoPromNum = Number($json.snapshot_monto_promesa);\n    const snapMontoPromSql = Number.isFinite(snapMontoPromNum) ? String(snapMontoPromNum) : 'NULL';\n\n    const snapIntentos = Number($json.snapshot_intentos_llamada ?? 0);\n    const snapWinTries = Number($json.snapshot_win_tries ?? 0);\n    const snapTelIdx = Number($json.snapshot_telefono_index ?? 0);\n\n    const snapWinStampRaw = $json.snapshot_win_stamp;\n    const snapWinStampSql = (snapWinStampRaw == null || String(snapWinStampRaw).trim() === '')\n      ? 'NULL'\n      : ` '${String(snapWinStampRaw).replace(/'/g, \"''\")}' `;\n\n    return `UPDATE ${cfg.db.schema}.${cfg.db.table}\n            SET estado_flujo = '${snapEstado}',\n                fecha_reagenda = ${snapFechaReagendaSql},\n                intentos_llamada = ${Number.isFinite(snapIntentos) ? snapIntentos : 0},\n                win_tries = ${Number.isFinite(snapWinTries) ? snapWinTries : 0},\n                telefono_index = ${Number.isFinite(snapTelIdx) ? snapTelIdx : 0},\n                win_stamp = ${snapWinStampSql},\n                fecha_ultima_llamada = ${snapFechaUltSql},\n                telefono_preferido = ${snapTelPrefSql},\n                fecha_promesa = ${snapFechaPromSql},\n                monto_promesa = ${snapMontoPromSql},\n                updated_at = NOW()\n            WHERE num_operacion = '${numOperacion}'\n            RETURNING num_operacion, 'restored_from_snapshot' AS status;`;\n  }\n\n  const estado = String($json.estado_flujo || cfg.states.retry || 'REINTENTAR').replace(/'/g, \"''\");\n  const fechaRaw = $json.reintentar_iso || $json.fecha_reagenda || null;\n  const fechaSql = (fechaRaw == null || String(fechaRaw).trim() === '')\n    ? `NOW() + INTERVAL '30 minutes'`\n    : ` '${String(fechaRaw).replace(/'/g, \"''\")}'::timestamptz `;\n\n  const intentos = Number($json.intentos_llamada || 0);\n  const winTries = Number($json.win_tries || 0);\n  const telIdx = Number($json.telefono_index || 0);\n\n  return `UPDATE ${cfg.db.schema}.${cfg.db.table}\n          SET estado_flujo = '${estado}',\n              fecha_reagenda = ${fechaSql},\n              intentos_llamada = ${Number.isFinite(intentos) ? intentos : 0},\n              win_tries = ${Number.isFinite(winTries) ? winTries : 0},\n              telefono_index = ${Number.isFinite(telIdx) ? telIdx : 0},\n              updated_at = NOW()\n          WHERE num_operacion = '${numOperacion}'\n          RETURNING num_operacion, 'fallback_without_snapshot' AS status;`;\n})() }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -1880,
+        -240
+      ],
+      "id": "1fd088c3-3266-4fde-8943-100d5f5757a9",
+      "name": "FALLBACK ACTUALIZA ESTADO1",
+      "credentials": {
+        "postgres": {
+          "id": "Iz7EEp0WgJu3LXhn",
+          "name": "Gea_postgress"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "CONFIG INICIAL": {
+      "main": [
+        [
+          {
+            "node": "BUSCA Y MARCA COMO EN PROCESO1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EJECUTA ESTO CADA 20 SEG1": {
+      "main": [
+        [
+          {
+            "node": "CONFIG INICIAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BUSCA Y MARCA COMO EN PROCESO1": {
+      "main": [
+        [
+          {
+            "node": "SI SE ENCONTRO EL ID DEL REGISTRO1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SI SE ENCONTRO EL ID DEL REGISTRO1": {
+      "main": [
+        [
+          {
+            "node": "COMO DEBE LLAMAR EL BOT (POLITICAS)1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "NO HACE NADA1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "COMO DEBE LLAMAR EL BOT (POLITICAS)1": {
+      "main": [
+        [
+          {
+            "node": "POLITICAS Y REINTENTOS (RESPALDO)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POLITICAS Y REINTENTOS (RESPALDO)1": {
+      "main": [
+        [
+          {
+            "node": "SI PUEDE LLAMAR (VERDADERO O FALSO)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SI PUEDE LLAMAR (VERDADERO O FALSO)1": {
+      "main": [
+        [
+          {
+            "node": "PROCESA LOS NUMEROS Y FORMATEA1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FORMATEA STATUS1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PROCESA LOS NUMEROS Y FORMATEA1": {
+      "main": [
+        [
+          {
+            "node": "SI NO ESTA FUERA DE LA LISTA DE NUMEROS DISPONIBLES1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FORMATEA STATUS1": {
+      "main": [
+        [
+          {
+            "node": "GUARDA REGISTRO Y CAMPAÃƒâ€˜A1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SI NO ESTA FUERA DE LA LISTA DE NUMEROS DISPONIBLES1": {
+      "main": [
+        [
+          {
+            "node": "GUARDA REGISTRO1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "CUANDO NO SE ENCONTRO NUMERO VALIDO1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CUANDO NO SE ENCONTRO NUMERO VALIDO1": {
+      "main": [
+        [
+          {
+            "node": "GUARDA REPORTE1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GUARDA REGISTRO1": {
+      "main": [
+        [
+          {
+            "node": "AGENTE CUENTA1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FALLBACK ACTUALIZA ESTADO1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AGENTE CUENTA1": {
+      "main": [
+        [
+          {
+            "node": "NO HACE NADA1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FALLBACK ACTUALIZA ESTADO1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "533fda23-3175-453a-9e24-bef520b4a422",
+  "meta": {
+    "instanceId": "915a7f7568d882a64f47657d6f3fab09c88f51183cb22a1bfa48ee39cc137bcd"
+  },
+  "id": "N0uWFbRxqWFU7xk4",
+  "tags": []
+}

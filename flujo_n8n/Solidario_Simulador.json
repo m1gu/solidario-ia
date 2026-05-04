@@ -1,0 +1,127 @@
+{
+    "name":  "Solidario-Simulador",
+    "nodes":  [
+                  {
+                      "parameters":  {
+                                         "httpMethod":  "POST",
+                                         "path":  "solidario-simulador",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "name":  "Webhook Simulador",
+                      "type":  "n8n-nodes-base.webhook",
+                      "typeVersion":  2,
+                      "position":  [
+                                       0,
+                                       0
+                                   ],
+                      "id":  "374301f7-65ee-444b-bbc2-e316f62dd646",
+                      "webhookId":  "57035bbd-0e21-4c8f-afd3-b75481e2756e"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const body = $json.body || $json;\nconst callId = \u0027sim-\u0027 + Date.now() + \u0027-\u0027 + Math.floor(Math.random()*1000);\nconst metadata = body.assistant?.metadata || body.metadata || {};\nconst overrides = body.assistantOverrides?.variableValues || body.variableValues || {};\n\n// Leer variables\nconst agenteTipo = overrides.agente_tipo || metadata.agente_tipo || \"COBROS\";\nconst monto = Number(overrides.valor || overrides.monto || 0);\nconst fechaVencimiento = overrides.fecha_maxima || overrides.fecha_vencimiento || new Date().toISOString().split(\u0027T\u0027)[0];\nconst numeroTelefono = body.customer?.number || \"+593999999999\";\n\nconst rand = Math.random();\nlet connected = false;\nlet endedReason = \u0027\u0027;\nlet escenario = 0; // 1: No conecta, 2: Tercero, 3: Titular No Acepta, 4: Titular Acepta\n\nif (rand \u003c 0.25) {\n    escenario = 1;\n} else if (rand \u003c 0.40) {\n    escenario = 2;\n} else if (rand \u003c 0.70) {\n    escenario = 3;\n} else {\n    escenario = 4;\n}\n\nlet structuredData = {\n    canal: \"Llamada Simulada\",\n    sentimiento: \"neutral\"\n};\n\nlet duracionLlamada = 0;\n\nif (escenario === 1) {\n    // No conecto\n    connected = false;\n    const randFail = Math.random();\n    if (randFail \u003c 0.5) { endedReason = \u0027customer-busy\u0027; structuredData.codigo_respuesta = \u0027OCU08\u0027; }\n    else if (randFail \u003c 0.8) { endedReason = \u0027no-answer\u0027; structuredData.codigo_respuesta = \u0027NOCON05\u0027; }\n    else { endedReason = \u0027voicemail\u0027; structuredData.codigo_respuesta = \u0027CONTESAUT\u0027; }\n    \n    structuredData.Nomenclatura = \"NO CONTACTO NO JUSTIFICADO\";\n    structuredData.contactoalo = \"No\";\n    structuredData.es_familiar = \"No\";\n    structuredData.aceptacion = \"No\";\n    structuredData.Resumen_Llamada = \"Llamada no fue contestada.\";\n    duracionLlamada = 5 + Math.floor(Math.random() * 10);\n    \n} else if (escenario === 2) {\n    // Tercero\n    connected = true;\n    endedReason = \u0027customer-ended-call\u0027;\n    structuredData.Nomenclatura = \"CONTACTO FALLIDO JUSTIFICADO\";\n    structuredData.codigo_respuesta = \"MSJTERCEROS\";\n    structuredData.contactoalo = \"Si\";\n    structuredData.es_familiar = Math.random() \u003c 0.5 ? \"Si\" : \"No\";\n    structuredData.aceptacion = \"No\";\n    structuredData.Resumen_Llamada = \"Contesto un tercero, se dejo mensaje.\";\n    duracionLlamada = 20 + Math.floor(Math.random() * 30);\n    \n} else if (escenario === 3) {\n    // Titular No Acepta\n    connected = true;\n    endedReason = \u0027customer-ended-call\u0027;\n    structuredData.Nomenclatura = \"NO ACEPTACION\";\n    const motivos = [\u0027NOTIETRA\u0027, \u0027SINJUS\u0027, \u0027PROBLSALUD\u0027, \u0027DEUOTRPER\u0027];\n    structuredData.codigo_respuesta = motivos[Math.floor(Math.random() * motivos.length)];\n    structuredData.contactoalo = \"Si\";\n    structuredData.es_familiar = \"No\";\n    structuredData.aceptacion = \"No\";\n    structuredData.Resumen_Llamada = \"Titular contesta pero no acepta el pago por motivo: \" + structuredData.codigo_respuesta;\n    structuredData.sentimiento = \"negativo\";\n    duracionLlamada = 40 + Math.floor(Math.random() * 60);\n    \n} else if (escenario === 4) {\n    // Titular Acepta (Promesa de Pago)\n    connected = true;\n    endedReason = \u0027customer-ended-call\u0027;\n    structuredData.Nomenclatura = \"PENDIENTE DE ACEPTACION\";\n    structuredData.codigo_respuesta = \"COMPAGO\";\n    structuredData.contactoalo = \"Si\";\n    structuredData.es_familiar = \"No\";\n    structuredData.aceptacion = \"Si\";\n    structuredData.Resumen_Llamada = \"Titular acepta compromiso de pago.\";\n    structuredData.sentimiento = \"positivo\";\n    \n    // Calcular monto y fecha segun politicas\n    if (agenteTipo === \"PREVENTIVA\") {\n        structuredData.monto_promesa = monto.toFixed(2);\n        structuredData.fecha_promesa = fechaVencimiento;\n    } else {\n        // COBROS: 30% a 100% del monto\n        const porcentaje = 0.30 + (Math.random() * 0.70);\n        structuredData.monto_promesa = (monto * porcentaje).toFixed(2);\n        \n        // Fecha promesa: hoy a 48 horas (0 a 2 dias)\n        const dias = Math.floor(Math.random() * 3);\n        const fp = new Date();\n        fp.setDate(fp.getDate() + dias);\n        structuredData.fecha_promesa = fp.toISOString().split(\u0027T\u0027)[0];\n    }\n    duracionLlamada = 60 + Math.floor(Math.random() * 60);\n}\n\nconst startTimeMs = Date.now() - (duracionLlamada * 1000);\nconst startTime = new Date(startTimeMs).toISOString();\nconst endTime = new Date().toISOString();\n\nconst payload = {\n    message: {\n        type: \"end-of-call-report\",\n        call: {\n            id: callId,\n            customer: { number: numeroTelefono },\n            startedAt: startTime,\n            endedAt: endTime,\n        },\n        endedReason: endedReason,\n        transcript: connected ? '[Simulacion] Llamada escenario ' + escenario + '.' : \"\",\n        analysis: {\n            structuredData: structuredData\n        },\n        metadata: metadata\n    }\n};\n\nreturn { json: payload };"
+                                     },
+                      "name":  "Generador de Resultado",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       220,
+                                       0
+                                   ],
+                      "id":  "a8ae3ef5-9cd9-4251-a8f8-d23466f8e882"
+                  },
+                  {
+                      "parameters":  {
+                                         "amount":  2,
+                                         "unit":  "seconds"
+                                     },
+                      "name":  "Espera (Wait)",
+                      "type":  "n8n-nodes-base.wait",
+                      "typeVersion":  1,
+                      "position":  [
+                                       440,
+                                       0
+                                   ],
+                      "id":  "194f33be-c7d1-45a9-b66e-025b4a4d4ed8",
+                      "webhookId":  "5972dcf5-21f1-4368-a3da-403dfb7aa32e"
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "POST",
+                                         "url":  "https://n8nps.plusservices.ec/webhook/solidario-cobros-cierre-vapi",
+                                         "sendBody":  true,
+                                         "bodyParameters":  {
+                                                                "parameters":  [
+                                                                                   {
+                                                                                       "name":  "message",
+                                                                                       "value":  "={{ $json.message }}"
+                                                                                   }
+                                                                               ]
+                                                            },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "name":  "Disparar CierreLlamadas",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.1,
+                      "position":  [
+                                       660,
+                                       0
+                                   ],
+                      "id":  "3f07af88-3d11-4431-a4c0-3c1ab5ac15b1"
+                  }
+              ],
+    "pinData":  {
+
+                },
+    "connections":  {
+                        "Webhook Simulador":  {
+                                                  "main":  [
+                                                               [
+                                                                   {
+                                                                       "node":  "Generador de Resultado",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ]
+                                                           ]
+                                              },
+                        "Generador de Resultado":  {
+                                                       "main":  [
+                                                                    [
+                                                                        {
+                                                                            "node":  "Espera (Wait)",
+                                                                            "type":  "main",
+                                                                            "index":  0
+                                                                        }
+                                                                    ]
+                                                                ]
+                                                   },
+                        "Espera (Wait)":  {
+                                              "main":  [
+                                                           [
+                                                               {
+                                                                   "node":  "Disparar CierreLlamadas",
+                                                                   "type":  "main",
+                                                                   "index":  0
+                                                               }
+                                                           ]
+                                                       ]
+                                          }
+                    },
+    "active":  false,
+    "settings":  {
+                     "executionOrder":  "v1"
+                 },
+    "versionId":  "5f8517c8-6c99-4e62-a327-8bf0eeda82aa",
+    "meta":  {
+                 "instanceId":  "915a7f7568d882a64f47657d6f3fab09c88f51183cb22a1bfa48ee39cc137bcd"
+             },
+    "id":  "klWUaurHzyGmRLBq",
+    "tags":  [
+
+             ]
+}
