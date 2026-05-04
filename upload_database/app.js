@@ -4,7 +4,6 @@
 
 // ---- Column mapping: input header -> SQL column name ----
 const COLUMN_MAP = {
-    // Campos esperados del TXT de Altiva
     numerooperacion: 'num_operacion',
     identificacion: 'cedula',
     nombres: 'nombre',
@@ -21,7 +20,6 @@ const COLUMN_MAP = {
     dias_retraso: 'dias_retraso',
     producto: 'producto',
 
-    // Alias compatibles
     num_operacion: 'num_operacion',
     numero_operacion: 'num_operacion',
     cedula: 'cedula',
@@ -31,16 +29,14 @@ const COLUMN_MAP = {
     fecha_vencimiento: 'fecha_vencimiento',
 };
 
-// Integer columns (need parseInt)
+const VALID_ESTADO_FLUJO = new Set(['PENDIENTE', 'EN_PROCESO', 'REINTENTAR', 'FINALIZADO']);
+
+const REQUIRED_COLUMNS = ['num_operacion', 'cedula', 'nombre', 'apellido', 'monto', 'fecha_vencimiento'];
+
 const INT_COLUMNS = new Set(['intentos_llamada', 'win_tries', 'telefono_index']);
-
-// Float columns (need parseFloat)
 const FLOAT_COLUMNS = new Set(['monto']);
-
-// Date columns (store as YYYY-MM-DD)
 const DATE_COLUMNS = new Set(['fecha_vencimiento']);
 
-// Campos que se suben desde archivo y se muestran en preview
 const UPLOAD_COLUMNS = [
     'num_operacion',
     'cedula',
@@ -56,22 +52,18 @@ const UPLOAD_COLUMNS = [
     'fecha_vencimiento',
     'dias_retraso',
     'producto',
-    // Estado del flujo: si no viene en el archivo se fija a 'PENDIENTE' en mapRowToColumns()
     'estado_flujo',
 ];
 
-// ---- Hardcoded Supabase credentials (local use only) ----
 const SUPABASE_URL = 'https://suokpkpzpfvadwemxzfa.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN1b2twa3B6cGZ2YWR3ZW14emZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkyNjM0ODgsImV4cCI6MjA3NDgzOTQ4OH0.bSMXRoVj_5vjIftDV1VcjauQQhYhK5AL7fz3VFln72A';
-const TABLE_NAME = 'solidario_registros_DUP';
+const TABLE_NAME = 'solidario_registros';
 
-// ---- State ----
 let supabaseClient = null;
 let parsedData = [];
 let fileHeaders = [];
 let dryRunMode = false;
 
-// ---- DOM Elements (initialized in init()) ----
 let connectionStatus, statusText;
 let tabUpload, viewUpload;
 let dropZone, fileInput, fileInfo, fileName, fileMeta;
@@ -82,7 +74,6 @@ let resultSection, resultContent, processingOverlay;
 
 const $ = (sel) => document.querySelector(sel);
 
-// ---- Initialize ----
 document.addEventListener('DOMContentLoaded', init);
 
 function init() {
@@ -157,7 +148,6 @@ async function connectToSupabase() {
     try {
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // Validar contra la tabla real (la raiz /rest/v1/ puede responder 401 para anon)
         const { error } = await supabaseClient.from(TABLE_NAME).select('num_operacion').limit(1);
         if (error) {
             const status = error?.code || error?.status || '';
@@ -263,8 +253,6 @@ async function parseXLSX(file) {
                 const jsonDataRaw = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: true });
                 const jsonDataDisplay = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
 
-                // Preserve Excel-displayed text for keys mapped to num_operacion.
-                // This keeps leading zeros when the sheet shows them (e.g. 0034559693).
                 const jsonData = jsonDataRaw.map((row, idx) => {
                     const displayRow = jsonDataDisplay[idx] || {};
                     const patched = { ...row };
@@ -485,6 +473,21 @@ async function handleUpload() {
         return;
     }
 
+    const validation = validateRequiredFields(parsedData);
+    if (!validation.valid) {
+        resultSection.classList.remove('hidden');
+        resultSection.className = 'result-section error';
+        resultContent.innerHTML = `
+            <span class="result-icon">X</span>
+            <span class="result-title">Carga cancelada</span>
+            <span class="result-detail">
+                ${validation.message}
+            </span>
+        `;
+        btnUpload.disabled = false;
+        return;
+    }
+
     btnUpload.disabled = true;
     progressSection.classList.remove('hidden');
     resultSection.classList.add('hidden');
@@ -492,19 +495,45 @@ async function handleUpload() {
     const BATCH_SIZE = 500;
     const totalInputRows = parsedData.length;
     const preparedRows = dedupeRowsByNumOperacion(parsedData);
-    const totalRows = preparedRows.length;
+
+    const numOps = preparedRows.map(r => r.num_operacion);
+    let existingMap;
+    try {
+        existingMap = await fetchExistingRecords(numOps);
+    } catch (err) {
+        resultSection.classList.remove('hidden');
+        resultSection.className = 'result-section error';
+        resultContent.innerHTML = `
+            <span class="result-icon">X</span>
+            <span class="result-title">Error al verificar registros existentes</span>
+            <span class="result-detail">${escapeHTML(err.message)}</span>
+        `;
+        btnUpload.disabled = false;
+        progressSection.classList.add('hidden');
+        return;
+    }
+
+    const todayStr = getTodayString();
+    const finalRows = preparedRows.map(row => {
+        const existing = existingMap.get(row.num_operacion);
+        let merged = mergeWithExisting(row, existing);
+        merged = evaluateTransitionRules(merged, existing, todayStr);
+        return merged;
+    });
+
+    const totalRows = finalRows.length;
     let inserted = 0;
     let errors = [];
     const dryRun = dryRunMode;
 
     for (let i = 0; i < totalRows; i += BATCH_SIZE) {
-        const mappedBatch = preparedRows.slice(i, i + BATCH_SIZE);
+        const batch = finalRows.slice(i, i + BATCH_SIZE);
 
         if (dryRun) {
             await new Promise((r) => setTimeout(r, 30));
         } else {
             try {
-                const { error } = await supabaseClient.from(TABLE_NAME).upsert(mappedBatch, {
+                const { error } = await supabaseClient.from(TABLE_NAME).upsert(batch, {
                     onConflict: 'num_operacion',
                     ignoreDuplicates: false,
                 });
@@ -512,22 +541,104 @@ async function handleUpload() {
                 if (error) {
                     errors.push(`Lote ${Math.floor(i / BATCH_SIZE) + 1}: ${error.message}`);
                 } else {
-                    inserted += mappedBatch.length;
+                    inserted += batch.length;
                 }
             } catch (err) {
                 errors.push(`Lote ${Math.floor(i / BATCH_SIZE) + 1}: ${err.message}`);
             }
         }
 
-        const progress = Math.min(((i + mappedBatch.length) / totalRows) * 100, 100);
+        const progress = Math.min(((i + batch.length) / totalRows) * 100, 100);
         progressBar.style.width = progress + '%';
         progressText.textContent = Math.round(progress) + '%';
-        progressCount.textContent = `${Math.min(i + mappedBatch.length, totalRows).toLocaleString()} / ${totalRows.toLocaleString()} filas`;
+        progressCount.textContent = `${Math.min(i + batch.length, totalRows).toLocaleString()} / ${totalRows.toLocaleString()} filas`;
 
         await new Promise((r) => setTimeout(r, 50));
     }
 
     showResult(inserted, errors, totalRows, totalInputRows, dryRun);
+}
+
+function validateRequiredFields(rows) {
+    const emptyFields = [];
+
+    for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        for (const col of REQUIRED_COLUMNS) {
+            const val = row[col];
+            if (val === null || val === undefined || val === '' || String(val).trim() === '') {
+                emptyFields.push(`Fila ${i + 1}: ${col} vacio`);
+            }
+        }
+
+        if (row.estado_flujo && !VALID_ESTADO_FLUJO.has(row.estado_flujo)) {
+            emptyFields.push(`Fila ${i + 1}: estado_flujo valor invalido "${row.estado_flujo}"`);
+        }
+    }
+
+    if (emptyFields.length > 0) {
+        const limit = 10;
+        const shown = emptyFields.slice(0, limit);
+        const remaining = emptyFields.length - limit;
+        let message = shown.join('<br>');
+        if (remaining > 0) {
+            message += `<br>... y ${remaining} errores mas`;
+        }
+        return { valid: false, message };
+    }
+
+    return { valid: true };
+}
+
+async function fetchExistingRecords(numOperaciones) {
+    const { data, error } = await supabaseClient
+        .from(TABLE_NAME)
+        .select('num_operacion, estado_flujo, fecha_reagenda, monto')
+        .in('num_operacion', numOperaciones);
+
+    if (error) throw error;
+
+    const map = new Map();
+    (data || []).forEach(row => map.set(row.num_operacion, row));
+    return map;
+}
+
+function mergeWithExisting(preparedRow, existing) {
+    if (!existing) return preparedRow;
+
+    const merged = { ...preparedRow, estado_flujo: existing.estado_flujo };
+
+    if (existing.fecha_reagenda) {
+        merged.fecha_reagenda = existing.fecha_reagenda;
+    }
+
+    return merged;
+}
+
+function evaluateTransitionRules(row, existing, today) {
+    if (row.estado_flujo !== 'FINALIZADO') return row;
+
+    if (row.fecha_vencimiento && row.fecha_vencimiento === today) {
+        row.estado_flujo = 'REINTENTAR';
+        return row;
+    }
+
+    if (existing && existing.monto != null && row.monto != null) {
+        if (Number(row.monto) !== Number(existing.monto)) {
+            row.estado_flujo = 'REINTENTAR';
+            return row;
+        }
+    }
+
+    return row;
+}
+
+function getTodayString() {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
 }
 
 function showResult(inserted, errors, total, totalInputRows = total, dryRun = false) {
@@ -571,6 +682,7 @@ function showResult(inserted, errors, total, totalInputRows = total, dryRun = fa
         `;
     }
 
+    progressSection.classList.add('hidden');
     btnUpload.disabled = false;
 }
 
@@ -609,7 +721,6 @@ function mapRowToColumns(row) {
             if (Number.isNaN(parsed)) {
                 finalValue = null;
             } else {
-                // Normaliza monto a dos decimales (ej. 220.5 -> 220.50)
                 finalValue = sqlColumn === 'monto' ? Number(parsed.toFixed(2)) : parsed;
             }
         }
@@ -618,24 +729,16 @@ function mapRowToColumns(row) {
             finalValue = toISODate(finalValue);
         }
 
+        if (sqlColumn === 'producto' && finalValue === 'EMPAQUETADO') {
+            finalValue = 'UNICREDITO';
+        }
+
         mapped[sqlColumn] = finalValue;
     }
 
-    // Implementación Escenario B para forzar reintento y continuar llamadas
-    // Si no viene estado en el archivo, forzamos PENDIENTE
     if (mapped.estado_flujo == null || mapped.estado_flujo === '') {
         mapped.estado_flujo = 'PENDIENTE';
     }
-    
-    // Anulamos tiempos de espera y contadores de franja para que llame de inmediato
-    mapped.fecha_reagenda = null;
-    mapped.fecha_ultima_llamada = null;
-    mapped.win_tries = 0;
-
-    // NOTA (Escenario B): NO forzamos 'intentos_llamada', 'telefono_index' ni 'win_stamp'. 
-    // De esta manera, si es un UPSERT (actualización), Supabase respetará los valores que ya tenía,
-    // y el flujo continuará marcando al teléfono que tocaba sin exceder el límite global.
-    // Si es un registro nuevo (INSERT), n8n manejará los NULL como 0 automáticamente.
 
     return mapped;
 }
@@ -649,12 +752,6 @@ function prepareRowsForUpload(rawRows) {
             UPLOAD_COLUMNS.forEach((col) => {
                 picked[col] = row[col] ?? null;
             });
-            
-            // Incluir campos forzados del Escenario B que no están en UPLOAD_COLUMNS
-            if (row.win_tries !== undefined) picked.win_tries = row.win_tries;
-            if (row.fecha_ultima_llamada !== undefined) picked.fecha_ultima_llamada = row.fecha_ultima_llamada;
-            if (row.fecha_reagenda !== undefined) picked.fecha_reagenda = row.fecha_reagenda;
-
             return picked;
         });
 
@@ -666,7 +763,6 @@ function dedupeRowsByNumOperacion(rows) {
     rows.forEach((row) => {
         const key = String(row.num_operacion ?? '').trim();
         if (!key) return;
-        // Si viene repetido en el archivo, conservar la ultima fila.
         byOperacion.set(key, row);
     });
     return [...byOperacion.values()];
@@ -675,7 +771,19 @@ function dedupeRowsByNumOperacion(rows) {
 // ---- Utilities ----
 function parseDate(value) {
     if (!value) return null;
-    const d = new Date(value);
+
+    const str = String(value).trim();
+    let d;
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+        d = new Date(str + 'T00:00:00');
+    } else if (/^\d{2}-\d{2}-\d{4}$/.test(str)) {
+        const [dd, mm, yyyy] = str.split('-');
+        d = new Date(`${yyyy}-${mm}-${dd}T00:00:00`);
+    } else {
+        d = new Date(value);
+    }
+
     return Number.isNaN(d.getTime()) ? null : d;
 }
 
