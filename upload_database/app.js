@@ -593,7 +593,7 @@ function validateRequiredFields(rows) {
 async function fetchExistingRecords(numOperaciones) {
     const { data, error } = await supabaseClient
         .from(TABLE_NAME)
-        .select('num_operacion, estado_flujo, fecha_reagenda, monto')
+        .select('num_operacion, estado_flujo, fecha_reagenda, monto, intentos_llamada')
         .in('num_operacion', numOperaciones);
 
     if (error) throw error;
@@ -607,6 +607,10 @@ function mergeWithExisting(preparedRow, existing) {
     if (!existing) return preparedRow;
 
     const merged = { ...preparedRow, estado_flujo: existing.estado_flujo };
+
+    if (existing.estado_flujo === 'EN_PROCESO') {
+        merged.estado_flujo = (existing.intentos_llamada > 0) ? 'REINTENTAR' : 'PENDIENTE';
+    }
 
     if (existing.fecha_reagenda) {
         merged.fecha_reagenda = existing.fecha_reagenda;

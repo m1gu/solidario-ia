@@ -1,0 +1,850 @@
+{
+  "name": "ENTRADA DE DATOS_GENERAL",
+  "nodes": [
+    {
+      "parameters": {
+        "content": " ESTE ES EL NODO QUE RECIBE DE ALTIVA LOS LEADS GUARDADOS\nLA LLAMADA",
+        "height": 120,
+        "width": 280,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        -200
+      ],
+      "id": "2d998e71-d0f7-4b41-a591-b83b835f1862",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "leads_v2",
+          "mode": "list",
+          "cachedResultName": "leads_v2"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id_campania": "={{ $json.id_campania }}",
+            "cedula": "={{ $json.cedula }}",
+            "nuic": "={{ $json.nuic }}",
+            "nombre_cliente": "={{ $json.nombre_cliente }}",
+            "segmento": "={{ $json.segmento }}",
+            "ciudad": "={{ $json.ciudad }}",
+            "email": "={{ $json.email }}",
+            "phones_raw": "={{ $json.phones_raw ?? null}}",
+            "ph_celular": "={{ $json.ph_celular }}",
+            "ph_celular2": "={{ $json.ph_celular2 }}",
+            "ph_residencial": "={{ $json.ph_residencial }}",
+            "ph_residencial2": "={{ $json.ph_residencial2 }}",
+            "ph_telefono4": "={{ $json.ph_telefono4 }}",
+            "ph_comercial": "={{ $json.ph_comercial }}",
+            "status_flujo": "={{ $json.status_flujo ?? 'pendiente'}}",
+            "consumo": "={{ $json.consumo }}",
+            "bandera": "={{ $json.bandera }}",
+            "id_altiva": "={{ $json.id_altiva }}",
+            "nodo": "={{ $json.nodo }}",
+            "sexo": "={{ $json.sexo }}}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "id_registro",
+              "displayName": "id_registro",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "id_campania",
+              "displayName": "id_campania",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "cedula",
+              "displayName": "cedula",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "nuic",
+              "displayName": "nuic",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "nombre_cliente",
+              "displayName": "nombre_cliente",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "segmento",
+              "displayName": "segmento",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ciudad",
+              "displayName": "ciudad",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "phones_raw",
+              "displayName": "phones_raw",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ph_celular",
+              "displayName": "ph_celular",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ph_celular2",
+              "displayName": "ph_celular2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ph_residencial",
+              "displayName": "ph_residencial",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ph_residencial2",
+              "displayName": "ph_residencial2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ph_comercial",
+              "displayName": "ph_comercial",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ph_telefono4",
+              "displayName": "ph_telefono4",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status_flujo",
+              "displayName": "status_flujo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "reintentar_iso",
+              "displayName": "reintentar_iso",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "prioridad_actual",
+              "displayName": "prioridad_actual",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "intentos_llamada",
+              "displayName": "intentos_llamada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "last_try_ymd",
+              "displayName": "last_try_ymd",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "picked_at",
+              "displayName": "picked_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "win_stamp",
+              "displayName": "win_stamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "win_tries",
+              "displayName": "win_tries",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "nomenclatura_ultima",
+              "displayName": "nomenclatura_ultima",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "motivo_ultimo",
+              "displayName": "motivo_ultimo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "resumen_llamada",
+              "displayName": "resumen_llamada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "sentimiento",
+              "displayName": "sentimiento",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "transcripcion",
+              "displayName": "transcripcion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "duracion_segundos",
+              "displayName": "duracion_segundos",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "observaciones_internas",
+              "displayName": "observaciones_internas",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "system_payload",
+              "displayName": "system_payload",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "telefono_actual",
+              "displayName": "telefono_actual",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "telefono_field",
+              "displayName": "telefono_field",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "telefono_index",
+              "displayName": "telefono_index",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "win_id",
+              "displayName": "win_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "phones_allowed",
+              "displayName": "phones_allowed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "last_outcome_at",
+              "displayName": "last_outcome_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "bandera",
+              "displayName": "bandera",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "consumo",
+              "displayName": "consumo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "horareagenda",
+              "displayName": "horareagenda",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "uso tarjeta",
+              "displayName": "uso tarjeta",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "id_altiva",
+              "displayName": "id_altiva",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "vapi_call_id",
+              "displayName": "vapi_call_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "vapi_intentos",
+              "displayName": "vapi_intentos",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "es_agendamiento",
+              "displayName": "es_agendamiento",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "id_agendamiento",
+              "displayName": "id_agendamiento",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "agendado_para",
+              "displayName": "agendado_para",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "nodo",
+              "displayName": "nodo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "sexo",
+              "displayName": "sexo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1020,
+        -20
+      ],
+      "id": "e55d6016-226b-4bdc-9b3f-00acab5567d8",
+      "name": "GUARDA LOS DATOS DEL LEAD",
+      "credentials": {
+        "postgres": {
+          "id": "Iz7EEp0WgJu3LXhn",
+          "name": "Gea_postgress"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": " sPLIT OUT SE USA PARA PROCESAR EL JSON DE LEADS  UNO POR UNO PORQUE LLEGAN TODOS LOS LEADS EN UNA SOLA ESTRUCTURA JSON",
+        "height": 140,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -220
+      ],
+      "id": "9dccc9f6-804b-48b2-9bb8-cb9a7e696142",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT MAX(id_registro) AS count\nFROM leads_v2;",
+        "options": {}
+      },
+      "id": "e2c21e78-31c9-47c7-9163-a9338244921c",
+      "name": "Postgres1",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        540,
+        40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "Iz7EEp0WgJu3LXhn",
+          "name": "Gea_postgress"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "body.leads",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        300,
+        80
+      ],
+      "id": "97b04026-cf09-4739-9d62-d94d5d594123",
+      "name": "PROCESA 1 POR UNO (CLIENTE)1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5aa30cf2-e20d-4ee9-8cb7-6905625b1c5a",
+              "name": "id_registro",
+              "value": "={{Number($json.count??0)+1}}",
+              "type": "string"
+            },
+            {
+              "id": "700acec5-aa1e-4aec-9e24-02e59a9e467e",
+              "name": "id_campania",
+              "value": "={{ $('PROCESA 1 POR UNO (CLIENTE)1').item.json.id_campania }}",
+              "type": "string"
+            },
+            {
+              "id": "05af157b-1271-472b-b4db-44cb881e319a",
+              "name": "cedula",
+              "value": "={{ $('PROCESA 1 POR UNO (CLIENTE)1').item.json.cedula }}",
+              "type": "string"
+            },
+            {
+              "id": "52e7132b-e37c-46eb-b5f5-e6d2af64defd",
+              "name": "nuic",
+              "value": "={{ $('PROCESA 1 POR UNO (CLIENTE)1').item.json.nuic }}",
+              "type": "string"
+            },
+            {
+              "id": "de0efed8-7d61-42c1-9c60-b7c0c5b6b054",
+              "name": "nombre_cliente",
+              "value": "={{ $('PROCESA 1 POR UNO (CLIENTE)1').item.json.nombre_cliente }}",
+              "type": "string"
+            },
+            {
+              "id": "9cebd997-378e-45c8-a09e-677bc5e2b333",
+              "name": "segmento",
+              "value": "={{ $('PROCESA 1 POR UNO (CLIENTE)1').item.json.segmento }}",
+              "type": "string"
+            },
+            {
+              "id": "e6bdf46b-8a29-431f-be1e-75c8f8852207",
+              "name": "ciudad",
+              "value": "={{ $('PROCESA 1 POR UNO (CLIENTE)1').item.json.ciudad }}",
+              "type": "string"
+            },
+            {
+              "id": "00e205f5-891b-4066-94e0-2c096a73f5a9",
+              "name": "ph_celular",
+              "value": "={{ $('PROCESA 1 POR UNO (CLIENTE)1').item.json.ph_celular }}",
+              "type": "string"
+            },
+            {
+              "id": "80fabf1d-c7b8-4f24-86ed-e21a29e3cbff",
+              "name": "ph_celular2",
+              "value": "= {{ $('PROCESA 1 POR UNO (CLIENTE)1').item.json.ph_celular2 ?? null }}",
+              "type": "string"
+            },
+            {
+              "id": "d9017b08-48c9-4024-9e82-3e8b66c97f33",
+              "name": "ph_residencial",
+              "value": "={{ $('PROCESA 1 POR UNO (CLIENTE)1').item.json.ph_residencial ?? null }}",
+              "type": "string"
+            },
+            {
+              "id": "5eb15c63-083d-4054-b5f2-f880dfd6af61",
+              "name": "ph_residencial2",
+              "value": "={{ $('PROCESA 1 POR UNO (CLIENTE)1').item.json.ph_residencial2 ?? null }}",
+              "type": "string"
+            },
+            {
+              "id": "fa053baa-597b-4566-842f-68b668d00191",
+              "name": "ph_comercial",
+              "value": "={{ $('PROCESA 1 POR UNO (CLIENTE)1').item.json.ph_comercial ?? null }}",
+              "type": "string"
+            },
+            {
+              "id": "9335b0dc-9cd0-4802-b629-fc38258731e3",
+              "name": "ph_telefono4",
+              "value": "={{ $('PROCESA 1 POR UNO (CLIENTE)1').item.json.ph_telefono4 ?? null }}",
+              "type": "string"
+            },
+            {
+              "id": "b05c8eb7-1b7f-4759-8ac1-84fafea35e46",
+              "name": "bandera",
+              "value": "={{ $('PROCESA 1 POR UNO (CLIENTE)1').item.json.bandera }}",
+              "type": "string"
+            },
+            {
+              "id": "5be2ed51-b270-4ade-9c89-75ff0d76c775",
+              "name": "consumo",
+              "value": "={{ $('PROCESA 1 POR UNO (CLIENTE)1').item.json.consumo }}",
+              "type": "string"
+            },
+            {
+              "id": "1e1dfd10-2626-43a1-ab31-d72aa984075e",
+              "name": "email",
+              "value": "={{ $('PROCESA 1 POR UNO (CLIENTE)1').item.json.email }}",
+              "type": "string"
+            },
+            {
+              "id": "f01b7066-c203-4de9-836b-97cc746f27d5",
+              "name": "id_altiva",
+              "value": "={{ $('PROCESA 1 POR UNO (CLIENTE)1').item.json.id_registro }}",
+              "type": "string"
+            },
+            {
+              "id": "137e0283-6f4e-4bff-88e6-f25eff19c064",
+              "name": "nodo",
+              "value": "={{ $('PROCESA 1 POR UNO (CLIENTE)1').item.json.nodo }}",
+              "type": "string"
+            },
+            {
+              "id": "70bf8958-dffb-4960-b5e7-3f3c0ae3b457",
+              "name": "sexo",
+              "value": "={{ $('PROCESA 1 POR UNO (CLIENTE)1').item.json.genero}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        780,
+        40
+      ],
+      "id": "aa5db15c-cc54-4985-9e9b-d78d5aa88a95",
+      "name": "MAPEA LOS CAMPOS DEL CLIENTE1"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "entrada-datos-general",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        40,
+        100
+      ],
+      "id": "9f2da749-1b2f-448c-b073-0da8f0ea459e",
+      "name": "Webhook DE ALTIVA",
+      "webhookId": "00cf7869-8d6d-43ba-8890-f27a34dbbefa"
+    },
+    {
+      "parameters": {
+        "jsCode": "const mock  = [\n  {\n    \"headers\": {\n      \"connection\": \"upgrade\",\n      \"host\": \"n8nps.plusservices.ec\",\n      \"content-length\": \"411\",\n      \"user-agent\": \"curl/8.0.1\",\n      \"accept\": \"*/*\",\n      \"content-type\": \"application/json\"\n    },\n    \"params\": {},\n    \"query\": {},\n    \"body\": {\n      \"body\": {\n        \"leads\": [\n        \n            {\n            \"id_campania\": \"5595\",\n            \"cedula\": \"0922456789\",\n            \"nuic\": \"0922456789\",\n            \"nombre_cliente\": \"Javier Andrés Quinteros Garcia\",\n            \"segmento\": \"MEDIO\",\n            \"ciudad\": \"Guayaquil\",\n            \"email\": \"carlos@test.com\",\n            \"ph_celular\": \"0995166290\",\n            \"ph_celular2\": \"0998730424\",\n            \"ph_residencial\": \"0995390486\",\n            \"ph_residencial2\": null,\n            \"ph_comercial\": null,\n            \"ph_telefono4\": null,\n            \"bandera\": \"1\",\n            \"id_registro\": \"7\",\n            \"nodo\": \"4\"\n          }\n        ]\n      }\n    },\n    \"webhookUrl\": \"http://localhost:5678/webhook/entrada-datos-general\",\n    \"executionMode\": \"production\"\n  }\n]\n\nreturn mock"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        220
+      ],
+      "id": "1b3fac84-d082-4a00-8046-bb9751a52b34",
+      "name": "Code"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "PROCESA 1 POR UNO (CLIENTE)1": {
+      "main": [
+        [
+          {
+            "node": "Postgres1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres1": {
+      "main": [
+        [
+          {
+            "node": "MAPEA LOS CAMPOS DEL CLIENTE1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MAPEA LOS CAMPOS DEL CLIENTE1": {
+      "main": [
+        [
+          {
+            "node": "GUARDA LOS DATOS DEL LEAD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook DE ALTIVA": {
+      "main": [
+        [
+          {
+            "node": "PROCESA 1 POR UNO (CLIENTE)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveExecutionProgress": true,
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "48ada511-56d6-4b6d-a903-1a69459a9ad0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "915a7f7568d882a64f47657d6f3fab09c88f51183cb22a1bfa48ee39cc137bcd"
+  },
+  "id": "9x7bKtLrfLYh1hbO",
+  "tags": []
+}

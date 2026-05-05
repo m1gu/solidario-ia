@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Solidario BI | Analytics & Auditoría</title>
+  <title>Solidario - Agente IA | Analytics & Auditoría</title>
   
   <!-- Modern Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -584,7 +584,7 @@
         <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
         <line x1="12" y1="22.08" x2="12" y2="12"></line>
       </svg>
-      <span>Solidario BI</span>
+      <span>Solidario - Agente IA</span>
     </div>
     <div class="tabs">
       <button class="tab-btn active" data-target="tab-metrics">Métricas</button>
@@ -599,6 +599,16 @@
       <div class="filters-bar">
         <input type="text" id="dash-date-from" class="date-picker" title="Fecha Desde" placeholder="dd/mm/aaaa" autocomplete="off">
         <input type="text" id="dash-date-to" class="date-picker" title="Fecha Hasta" placeholder="dd/mm/aaaa" autocomplete="off">
+        <select id="dash-producto">
+          <option value="AMBOS">AMBOS</option>
+          <option value="UNICREDITO">UNICREDITO</option>
+          <option value="CASAS_COMERCIALES">CASAS COMERCIALES</option>
+        </select>
+        <select id="dash-estrategia">
+          <option value="AMBAS">AMBAS</option>
+          <option value="COBROS">COBROS</option>
+          <option value="PREVENTIVA">PREVENTIVA</option>
+        </select>
         <button class="btn" id="btn-refresh-dash">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
           Actualizar
@@ -615,12 +625,16 @@
           <div class="kpi-value" id="kpi-aceptacion">0%</div>
         </div>
         <div class="glass-card">
-          <div class="kpi-title">Monto Recuperado (Promesa)</div>
+          <div class="kpi-title">Monto Promesa</div>
           <div class="kpi-value" id="kpi-monto">$0</div>
         </div>
         <div class="glass-card">
           <div class="kpi-title">Duración Promedio</div>
           <div class="kpi-value" id="kpi-duracion">0s</div>
+        </div>
+        <div class="glass-card">
+          <div class="kpi-title">% Contacto Efectivo</div>
+          <div class="kpi-value" id="kpi-contacto">0%</div>
         </div>
       </div>
 
@@ -640,6 +654,16 @@
         <input type="text" id="search-input" placeholder="Buscar por Cédula, Nombre, Operación..." style="flex: 1; min-width: 250px;">
         <input type="text" id="table-date-from" class="date-picker" title="Fecha Desde" placeholder="dd/mm/aaaa" autocomplete="off">
         <input type="text" id="table-date-to" class="date-picker" title="Fecha Hasta" placeholder="dd/mm/aaaa" autocomplete="off">
+        <select id="table-producto">
+          <option value="AMBOS">AMBOS</option>
+          <option value="UNICREDITO">UNICREDITO</option>
+          <option value="CASAS_COMERCIALES">CASAS COMERCIALES</option>
+        </select>
+        <select id="table-estrategia">
+          <option value="AMBAS">AMBAS</option>
+          <option value="COBROS">COBROS</option>
+          <option value="PREVENTIVA">PREVENTIVA</option>
+        </select>
         <button class="btn" id="btn-search">Buscar</button>
       </div>
 
@@ -816,13 +840,30 @@
     // ==========================================
     async function fetchData() {
       try {
-        const { data, error } = await supabaseClient
-          .from('solidario_llamadas')
-          .select('*')
-          .order('created_at', { ascending: false });
+        const [llamadasRes, registrosRes, gestionRes] = await Promise.all([
+          supabaseClient.from('solidario_llamadas').select('*').order('created_at', { ascending: false }),
+          supabaseClient.from('solidario_registros').select('num_operacion, producto'),
+          supabaseClient.from('solidario_reporte_gestion').select('num_operacion, user_name_gestion')
+        ]);
 
-        if (error) throw error;
-        allCalls = data || [];
+        if (llamadasRes.error) throw llamadasRes.error;
+
+        const productoMap = {};
+        (registrosRes.data || []).forEach(r => {
+          if (r.num_operacion) productoMap[r.num_operacion] = r.producto;
+        });
+
+        const gestionMap = {};
+        (gestionRes.data || []).forEach(g => {
+          if (g.num_operacion) gestionMap[g.num_operacion] = g.user_name_gestion;
+        });
+
+        allCalls = (llamadasRes.data || []).map(call => ({
+          ...call,
+          producto: productoMap[call.num_operacion] || null,
+          user_name_gestion: gestionMap[call.num_operacion] || null
+        }));
+
         applyDashboardFilters();
         applyCallsFilters();
       } catch (err) {
@@ -838,13 +879,22 @@
       const dashFrom = document.getElementById('dash-date-from').value;
       const dashTo = document.getElementById('dash-date-to').value;
       const { fromDate, toDate } = getDateRange(dashFrom, dashTo);
+      const productoVal = document.getElementById('dash-producto').value;
+      const estrategiaVal = document.getElementById('dash-estrategia').value;
 
       dashboardFilteredCalls = allCalls.filter(call => {
-        if (!fromDate && !toDate) return true;
-        const callDate = new Date(call.created_at);
-        if (Number.isNaN(callDate.getTime())) return false;
-        if (fromDate && callDate < fromDate) return false;
-        if (toDate && callDate > toDate) return false;
+        if (fromDate || toDate) {
+          const callDate = new Date(call.created_at);
+          if (Number.isNaN(callDate.getTime())) return false;
+          if (fromDate && callDate < fromDate) return false;
+          if (toDate && callDate > toDate) return false;
+        }
+
+        if (productoVal === 'UNICREDITO' && call.producto !== 'UNICREDITO') return false;
+        if (productoVal === 'CASAS_COMERCIALES' && (!call.producto || call.producto === 'UNICREDITO')) return false;
+
+        if (estrategiaVal !== 'AMBAS' && call.user_name_gestion !== estrategiaVal) return false;
+
         return true;
       });
 
@@ -856,23 +906,29 @@
       const from = document.getElementById('table-date-from').value;
       const to = document.getElementById('table-date-to').value;
       const { fromDate, toDate } = getDateRange(from, to);
+      const productoVal = document.getElementById('table-producto').value;
+      const estrategiaVal = document.getElementById('table-estrategia').value;
 
       filteredCalls = allCalls.filter(call => {
-        let matchSearch = true;
-        let matchDate = true;
-
         if (search) {
-          matchSearch = [call.cedula, call.nombre, call.apellido, call.num_operacion, call.id_llamada]
+          const matchSearch = [call.cedula, call.nombre, call.apellido, call.num_operacion, call.id_llamada]
             .some(field => String(field || '').toLowerCase().includes(search));
+          if (!matchSearch) return false;
         }
 
         if (fromDate || toDate) {
           const callDate = new Date(call.created_at);
           if (Number.isNaN(callDate.getTime())) return false;
-          if (fromDate && callDate < fromDate) matchDate = false;
-          if (toDate && callDate > toDate) matchDate = false;
+          if (fromDate && callDate < fromDate) return false;
+          if (toDate && callDate > toDate) return false;
         }
-        return matchSearch && matchDate;
+
+        if (productoVal === 'UNICREDITO' && call.producto !== 'UNICREDITO') return false;
+        if (productoVal === 'CASAS_COMERCIALES' && (!call.producto || call.producto === 'UNICREDITO')) return false;
+
+        if (estrategiaVal !== 'AMBAS' && call.user_name_gestion !== estrategiaVal) return false;
+
+        return true;
       });
 
       currentPage = 1;
@@ -886,6 +942,7 @@
       let acceptedCount = 0;
       let duracionSum = 0;
       let duracionCount = 0;
+      let contactoCount = 0;
 
       const nomenclatureCounts = {};
       const datesCounts = {};
@@ -898,6 +955,8 @@
           duracionSum += durationSec;
           duracionCount++;
         }
+
+        if (String(c.contactoefectivo).toLowerCase() === 'si') contactoCount++;
 
         // Chart Nomenclatura
         const nom = c.nomenclatura || 'Desconocido';
@@ -914,6 +973,7 @@
       document.getElementById('kpi-aceptacion').textContent = total > 0 ? Math.round((acceptedCount / total) * 100) + '%' : '0%';
       document.getElementById('kpi-monto').textContent = formatCurrency(totalMonto);
       document.getElementById('kpi-duracion').textContent = duracionCount > 0 ? Math.round(duracionSum / duracionCount) + 's' : '0s';
+      document.getElementById('kpi-contacto').textContent = total > 0 ? Math.round((contactoCount / total) * 100) + '%' : '0%';
 
       renderCharts(datesCounts, nomenclatureCounts);
     }
@@ -1109,17 +1169,27 @@
     document.getElementById('search-input').addEventListener('keyup', (e) => { if(e.key==='Enter') applyCallsFilters(); });
 
     // Date Picker Init
-    flatpickr('#dash-date-from, #dash-date-to, #table-date-from, #table-date-to', {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
+    const today = new Date();
+
+    flatpickr('#dash-date-from, #table-date-from', {
       dateFormat: 'Y-m-d',
       altInput: true,
       altFormat: 'd/m/Y',
-      allowInput: true
+      allowInput: true,
+      defaultDate: sevenDaysAgo
+    });
+
+    flatpickr('#dash-date-to, #table-date-to', {
+      dateFormat: 'Y-m-d',
+      altInput: true,
+      altFormat: 'd/m/Y',
+      allowInput: true,
+      defaultDate: today
     });
 
     // Init
     fetchData();
-    // Auto-refresh every 10 seconds
-    setInterval(fetchData, 10000);
 
   </script>
 </body>
