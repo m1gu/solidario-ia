@@ -559,7 +559,24 @@
       border-top-color: var(--accent);
       animation: spin 1s ease-in-out infinite;
     }
+    .loader-lg {
+      width: 48px; height: 48px;
+      border-width: 4px;
+    }
     @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(6px);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+    }
+    .loading-overlay.active {
+      display: flex;
+    }
     .loading-state {
       text-align: center;
       padding: 3rem;
@@ -739,6 +756,10 @@
     </div>
   </div>
 
+  <div class="loading-overlay" id="loading-overlay">
+    <div class="loader loader-lg"></div>
+  </div>
+
   <script>
     // ==========================================
     // SUPABASE CONFIGURATION
@@ -781,6 +802,19 @@
       const toDate = parseDateValue(toValue);
       if (toDate) toDate.setHours(23, 59, 59, 999);
       return { fromDate, toDate };
+    };
+    const clampTo4Days = (fromValue, toValue) => {
+      let fromDate = parseDateValue(fromValue);
+      const toDate = parseDateValue(toValue);
+      if (fromDate && toDate && (toDate - fromDate) > 4 * 86400000) {
+        fromDate = new Date(toDate.getTime() - 4 * 86400000);
+      }
+      const toEnd = toDate ? new Date(toDate) : null;
+      if (toEnd) toEnd.setHours(23, 59, 59, 999);
+      return {
+        fromISO: fromDate ? fromDate.toISOString() : null,
+        toISO: toEnd ? toEnd.toISOString() : null
+      };
     };
     const getDurationSeconds = (call) => {
       const directCandidates = [
@@ -838,15 +872,31 @@
     // ==========================================
     // DATA FETCHING
     // ==========================================
-    async function fetchData() {
+    async function fetchData(fromISO = null, toISO = null) {
+      const overlay = document.getElementById('loading-overlay');
+      overlay.classList.add('active');
       try {
-        const [llamadasRes, registrosRes, gestionRes] = await Promise.all([
-          supabaseClient.from('solidario_llamadas').select('*').order('created_at', { ascending: false }),
+        const PAGE = 1000;
+        let allLlamadas = [];
+        let page = 0;
+
+        while (true) {
+          let q = supabaseClient.from('solidario_llamadas').select('*').order('created_at', { ascending: false });
+          if (fromISO) q = q.gte('created_at', fromISO);
+          if (toISO) q = q.lte('created_at', toISO);
+
+          const { data, error } = await q.range(page * PAGE, (page + 1) * PAGE - 1);
+          if (error) throw error;
+
+          if (data && data.length > 0) allLlamadas = allLlamadas.concat(data);
+          if (!data || data.length < PAGE) break;
+          page++;
+        }
+
+        const [registrosRes, gestionRes] = await Promise.all([
           supabaseClient.from('solidario_registros').select('num_operacion, producto'),
           supabaseClient.from('solidario_reporte_gestion').select('num_operacion, user_name_gestion')
         ]);
-
-        if (llamadasRes.error) throw llamadasRes.error;
 
         const productoMap = {};
         (registrosRes.data || []).forEach(r => {
@@ -858,7 +908,7 @@
           if (g.num_operacion) gestionMap[g.num_operacion] = g.user_name_gestion;
         });
 
-        allCalls = (llamadasRes.data || []).map(call => ({
+        allCalls = (allLlamadas || []).map(call => ({
           ...call,
           producto: productoMap[call.num_operacion] || null,
           user_name_gestion: gestionMap[call.num_operacion] || null
@@ -870,31 +920,20 @@
         console.error('Error fetching data:', err);
         document.querySelector('#calls-table tbody').innerHTML = `<tr><td colspan="8" style="color:var(--danger); text-align:center;">Error cargando datos. Revisa la consola.</td></tr>`;
       }
+      overlay.classList.remove('active');
     }
 
     // ==========================================
     // RENDERING & LOGIC
     // ==========================================
     function applyDashboardFilters() {
-      const dashFrom = document.getElementById('dash-date-from').value;
-      const dashTo = document.getElementById('dash-date-to').value;
-      const { fromDate, toDate } = getDateRange(dashFrom, dashTo);
       const productoVal = document.getElementById('dash-producto').value;
       const estrategiaVal = document.getElementById('dash-estrategia').value;
 
       dashboardFilteredCalls = allCalls.filter(call => {
-        if (fromDate || toDate) {
-          const callDate = new Date(call.created_at);
-          if (Number.isNaN(callDate.getTime())) return false;
-          if (fromDate && callDate < fromDate) return false;
-          if (toDate && callDate > toDate) return false;
-        }
-
         if (productoVal === 'UNICREDITO' && call.producto !== 'UNICREDITO') return false;
         if (productoVal === 'CASAS_COMERCIALES' && (!call.producto || call.producto === 'UNICREDITO')) return false;
-
         if (estrategiaVal !== 'AMBAS' && call.user_name_gestion !== estrategiaVal) return false;
-
         return true;
       });
 
@@ -903,9 +942,6 @@
 
     function applyCallsFilters() {
       const search = document.getElementById('search-input').value.toLowerCase();
-      const from = document.getElementById('table-date-from').value;
-      const to = document.getElementById('table-date-to').value;
-      const { fromDate, toDate } = getDateRange(from, to);
       const productoVal = document.getElementById('table-producto').value;
       const estrategiaVal = document.getElementById('table-estrategia').value;
 
@@ -914,13 +950,6 @@
           const matchSearch = [call.cedula, call.nombre, call.apellido, call.num_operacion, call.id_llamada]
             .some(field => String(field || '').toLowerCase().includes(search));
           if (!matchSearch) return false;
-        }
-
-        if (fromDate || toDate) {
-          const callDate = new Date(call.created_at);
-          if (Number.isNaN(callDate.getTime())) return false;
-          if (fromDate && callDate < fromDate) return false;
-          if (toDate && callDate > toDate) return false;
         }
 
         if (productoVal === 'UNICREDITO' && call.producto !== 'UNICREDITO') return false;
@@ -1161,10 +1190,17 @@
     };
 
     // Events
-    document.getElementById('btn-search').addEventListener('click', applyCallsFilters);
+    document.getElementById('btn-search').addEventListener('click', () => {
+      const from = document.getElementById('table-date-from').value;
+      const to = document.getElementById('table-date-to').value;
+      const { fromISO, toISO } = clampTo4Days(from, to);
+      fetchData(fromISO, toISO);
+    });
     document.getElementById('btn-refresh-dash').addEventListener('click', () => {
-      applyDashboardFilters();
-      fetchData();
+      const from = document.getElementById('dash-date-from').value;
+      const to = document.getElementById('dash-date-to').value;
+      const { fromISO, toISO } = clampTo4Days(from, to);
+      fetchData(fromISO, toISO);
     });
     document.getElementById('search-input').addEventListener('keyup', (e) => { if(e.key==='Enter') applyCallsFilters(); });
 
@@ -1189,8 +1225,12 @@
     });
 
     // Init
-    fetchData();
+    const initFrom = document.getElementById('dash-date-from').value;
+    const initTo = document.getElementById('dash-date-to').value;
+    const { fromISO, toISO } = clampTo4Days(initFrom, initTo);
+    fetchData(fromISO, toISO);
 
   </script>
+
 </body>
 </html>
