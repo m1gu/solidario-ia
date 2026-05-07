@@ -126,10 +126,15 @@ Web-based CSV/XLSX/TXT uploader for `solidario_registros`. Validates, merges wit
 ## Workflows & Business Logic
 
 ### 1. Outbound Calling (`Solidario_Cobros_Llamadas`)
-- **Trigger**: Scheduled interval (e.g., every 20-60 seconds).
+- **Trigger**: Scheduled interval (every 20-60 seconds).
 - **Selection Logic**:
-    - Selects records where `estado_flujo` is `PENDIENTE` or `REINTENTAR`.
-    - Also handles `FINALIZADO` records if the `fecha_vencimiento` is today.
+    - Selects records where `estado_flujo` is `PENDIENTE`, `REINTENTAR`, or `EN_PROCESO` (recovered automatically if `fecha_reagenda` is past).
+    - Also handles `FINALIZADO` records if the `fecha_vencimiento` is today and `dias_retraso <= 0` (or in MODO1/AUTO, also if `dias_retraso` is in the priority range).
+- **Priority Modes** (configured in `prioridad.modo`):
+    - `NORMAL`: Default ordering (FINALIZADO → intentos ASC → reagenda ASC).
+    - `MODO1`: Prioritizes `dias_retraso IN (configurable range)`, fallback to normal.
+    - `MODO2`: Prioritizes `num_operacion IN (configurable array)`, fallback to normal.
+    - `AUTO`: Chains MODO1 → MODO2 → NORMAL automatically (SQL-based, no external state).
 - **Agent Assignment**:
     - `PREVENTIVA`: Assigned if the due date is today or in the future.
     - `COBROS`: Assigned if the due date has passed (negative `dias_retraso`).
@@ -152,7 +157,7 @@ Web-based CSV/XLSX/TXT uploader for `solidario_registros`. Validates, merges wit
 
 **Structure:**
 ```
-Cron 21h → CONFIG INICIAL → UPSERT PRODUCTIVIDAD → CONSULTA PROD → XLSX → SFTP
+Cron 21h → CONFIG INICIAL → UPSERT PRODUCTIVIDAD → COLAPSAR → CONSULTA PROD → XLSX → SFTP
                                                                               ↓
                                                           CONSULTA GESTION ← XLSX GEST ← SFTP GEST
                                                                               ↓
@@ -160,7 +165,15 @@ Cron 21h → CONFIG INICIAL → UPSERT PRODUCTIVIDAD → CONSULTA PROD → XLSX 
                                                                               ↓
                                                                    IF: EJECUTAR DESCARGA?
                                                                      ↙ true         ↘ false
-                                                          LISTAR IDS VAPI           FIN (NoOp)
+                                                          CREAR BINARIO .KEEP      FIN (NoOp)
+                                                                     ↓
+                                                          CREAR CARPETA SFTP
+                                                                     ↓
+                                                          LISTAR SFTP LLAMADAS
+                                                                     ↓
+                                                          EXTRAER IDS DESCARGADOS
+                                                                     ↓
+                                                          LISTAR IDS VAPI
                                                                  ↓
                                                           SPLIT → GET VAPI → EXTRAER URL → TIENE AUDIO?
                                                             ↑                                       ↓ true
@@ -181,6 +194,8 @@ Cron 21h → CONFIG INICIAL → UPSERT PRODUCTIVIDAD → CONSULTA PROD → XLSX 
 | `compromisos_de_pago_generados` | `COUNT(*) FILTER (WHERE aceptacion = 'Si')` |
 | `clientes_gestionados` | `COUNT(DISTINCT cedula) FILTER (WHERE contactoalo IS NOT NULL AND btrim(contactoalo) != '')` |
 | `numero_clientes_recuperados` | `COUNT(DISTINCT cedula) FILTER (WHERE aceptacion = 'Si')` |
+
+**Audio download resume**: Before downloading, the workflow creates a `.keep` file to ensure the SFTP folder exists, then lists already-downloaded call IDs to skip them on subsequent runs.
 
 ## Development Protocol for AI Agents
 - **Code Style**: Follow existing patterns in `app.js` and n8n JavaScript nodes. No comments unless asked. No external dependencies.

@@ -1,626 +1,760 @@
 {
-    "name": "Solidario-ReporteProductividad",
-    "nodes": [
-        {
-            "parameters": {
-                "rule": {
-                    "interval": [
-                        {
-                            "field": "cronExpression",
-                            "expression": "0 21 * * 1-6"
-                        }
-                    ]
-                }
-            },
-            "type": "n8n-nodes-base.scheduleTrigger",
-            "typeVersion": 1.2,
-            "position": [
-                14500,
-                2860
-            ],
-            "id": "f1de9bbd-b625-480e-aa35-245ef01cdbd9",
-            "name": "Cron Productividad 21h (L-S)"
-        },
-        {
-            "parameters": {
-                "jsCode": "// === CONFIGURACION (editar antes de ejecutar) ===\nconst MODO_FECHA = 'HOY';                // 'HOY' o 'FECHA_ESPECIFICA'\nconst FECHA_ESPECIFICA = '2026-05-01';   // solo se usa si MODO_FECHA = 'FECHA_ESPECIFICA'\nconst EJECUTAR_DESCARGA = true;          // true = descargar audios, false = solo reportes\nconst VAPI_API_KEY = '484afd71-2703-4852-8580-9629620dde82';\nconst VAPI_ASSISTANT_PREVENTIVA = 'aa95f1ca-a21a-4445-b7ff-bc414774d805';\nconst VAPI_ASSISTANT_COBROS = 'dbb81b6f-8e6b-4b18-9db6-6a4fcf9dca37';\n\nreturn items.map((item) => {\n  const tz = 'America/Guayaquil';\n\n  let forDate;\n  if (MODO_FECHA === 'FECHA_ESPECIFICA') {\n    forDate = FECHA_ESPECIFICA;\n  } else {\n    const nowLocal = new Date(new Date().toLocaleString('en-US', { timeZone: tz }));\n    const yyyy = nowLocal.getFullYear();\n    const mm = String(nowLocal.getMonth() + 1).padStart(2, '0');\n    const dd = String(nowLocal.getDate()).padStart(2, '0');\n    forDate = `${yyyy}-${mm}-${dd}`;\n  }\n\n  const yyyymmdd = forDate.replace(/-/g, '');\n\n  item.json.cfg = {\n    report: {\n      tz,\n      forDate,\n      yyyymmdd,\n      exportBasePath: './public_html/BANCO_SOLIDARIO',\n      exportFolderPath: `./public_html/BANCO_SOLIDARIO/${yyyymmdd}`,\n      cedente: 'BANCO SOLIDARIO',\n      tipoCartera: 'Administrativo',\n      canalGestion: 'VOZ IA',\n      gestoresAsignados: '1',\n      diasLaborados: '1',\n      observaciones: ' ',\n      ejecutarDescargaLlamadas: EJECUTAR_DESCARGA\n    },\n    vapi: {\n      baseUrl: 'https://api.vapi.ai',\n      apiKey: VAPI_API_KEY,\n      assistants: {\n        PREVENTIVA: VAPI_ASSISTANT_PREVENTIVA,\n        COBROS: VAPI_ASSISTANT_COBROS\n      }\n    },\n    agents: {\n      COBROS: VAPI_ASSISTANT_COBROS,\n      PREVENTIVA: VAPI_ASSISTANT_PREVENTIVA\n    }\n  };\n\n  return item;\n});"
-            },
-            "type": "n8n-nodes-base.code",
-            "typeVersion": 2,
-            "position": [
-                14760,
-                2860
-            ],
-            "id": "b1c9210f-ef3e-4d5b-8ef7-2fd0d45b42d1",
-            "name": "CONFIG INICIAL"
-        },
-        {
-            "parameters": {
-                "operation": "executeQuery",
-                "query": "={{ (() => {\n  const cfg = $items('CONFIG INICIAL', 0, 0)[0].json.cfg;\n  const tz = String(cfg.report.tz || 'America/Guayaquil').replace(/'/g, \"''\");\n  const forDate = String(cfg.report.forDate).replace(/'/g, \"''\");\n  const cedente = String(cfg.report.cedente).replace(/'/g, \"''\");\n  const tipoCartera = String(cfg.report.tipoCartera).replace(/'/g, \"''\");\n  const canal = String(cfg.report.canalGestion).replace(/'/g, \"''\");\n  const gestores = String(cfg.report.gestoresAsignados).replace(/'/g, \"''\");\n  const diasLab = String(cfg.report.diasLaborados).replace(/'/g, \"''\");\n  const obs = String(cfg.report.observaciones).replace(/'/g, \"''\");\n\n  return `WITH params AS (\n    SELECT '${forDate}'::date AS fecha_local, '${tz}'::text AS tz\n  ),\n  base AS (\n    SELECT\n      p.fecha_local AS fecha,\n      CASE\n        WHEN btrim(coalesce(r.dias_retraso,'')) LIKE '-%' THEN 'preventiva'\n        WHEN btrim(coalesce(r.dias_retraso,'')) LIKE '+%' THEN 'flujo/mora'\n        WHEN r.fecha_vencimiento IS NOT NULL AND (l.fecha_gestion AT TIME ZONE p.tz)::date <= r.fecha_vencimiento THEN 'preventiva'\n        ELSE 'flujo/mora'\n      END AS estrategia_o_equipo,\n      CASE\n        WHEN upper(btrim(coalesce(r.producto,''))) = 'UNICREDITO' THEN 'UNICREDITO'\n        ELSE 'CASAS COMERCIALES'\n      END AS producto_agrupado,\n      l.cedula,\n      l.contactoalo,\n      l.contactoefectivo,\n      l.aceptacion,\n      l.hora_inicio_llamada,\n      l.hora_fin_llamada,\n      l.fecha_gestion\n    FROM public.solidario_llamadas l\n    LEFT JOIN public.solidario_registros r ON r.num_operacion = l.num_operacion\n    CROSS JOIN params p\n    WHERE l.fecha_gestion >= (p.fecha_local::timestamp AT TIME ZONE p.tz)\n      AND l.fecha_gestion < ((p.fecha_local + 1)::timestamp AT TIME ZONE p.tz)\n  ),\n  grouped AS (\n    SELECT\n      fecha,\n      estrategia_o_equipo,\n      producto_agrupado AS producto,\n      count(*)::int AS marcaciones_realizadas,\n      count(*) FILTER (WHERE contactoalo IS NOT NULL AND btrim(contactoalo) != '')::int AS gestiones_realizadas,\n      count(*) FILTER (WHERE coalesce(contactoefectivo,'')='Si')::int AS contactos_directos,\n      count(*) FILTER (WHERE coalesce(aceptacion,'')='Si')::int AS compromisos_de_pago_generados,\n      count(DISTINCT cedula) FILTER (WHERE cedula IS NOT NULL AND btrim(cedula) <> '')::int AS numero_clientes_marcados,\n      count(DISTINCT cedula) FILTER (WHERE contactoalo IS NOT NULL AND btrim(contactoalo) != '' AND cedula IS NOT NULL AND btrim(cedula) <> '')::int AS clientes_gestionados,\n      count(DISTINCT cedula) FILTER (WHERE coalesce(aceptacion,'')='Si' AND cedula IS NOT NULL AND btrim(cedula) <> '')::int AS numero_clientes_recuperados,\n      round(coalesce(extract(epoch FROM (max(hora_fin_llamada) - min(hora_inicio_llamada))) / 3600.0, 0)::numeric, 2) AS horas_laborables\n    FROM base\n    GROUP BY fecha, estrategia_o_equipo, producto_agrupado\n  ),\n  gaps AS (\n    SELECT\n      b.fecha,\n      b.estrategia_o_equipo,\n      b.producto_agrupado AS producto,\n      extract(epoch FROM (b.hora_inicio_llamada - lag(b.hora_fin_llamada) OVER (\n        PARTITION BY b.fecha, b.estrategia_o_equipo, b.producto_agrupado\n        ORDER BY coalesce(b.hora_inicio_llamada, b.fecha_gestion)\n      ))) AS gap_seconds\n    FROM base b\n    WHERE b.hora_inicio_llamada IS NOT NULL\n  ),\n  gap_agg AS (\n    SELECT\n      fecha,\n      estrategia_o_equipo,\n      producto,\n      avg(gap_seconds) FILTER (WHERE gap_seconds IS NOT NULL AND gap_seconds >= 0) AS avg_gap_seconds\n    FROM gaps\n    GROUP BY fecha, estrategia_o_equipo, producto\n  )\n  INSERT INTO public.solidario_reporte_productividad (\n    fecha,\n    cedente,\n    tipo_cartera,\n    producto,\n    estrategia_o_equipo,\n    canal_gestion,\n    gestores_asignados,\n    horas_laborables,\n    dias_laborados,\n    observaciones,\n    marcaciones_realizadas,\n    gestiones_realizadas,\n    contactos_directos,\n    compromisos_de_pago_generados,\n    compromisos_de_pago_cumplidos,\n    numero_clientes_marcados,\n    clientes_gestionados,\n    numero_clientes_recuperados,\n    tiempo_entre_llamadas\n  )\n  SELECT\n    g.fecha,\n    '${cedente}',\n    '${tipoCartera}',\n    g.producto,\n    g.estrategia_o_equipo,\n    '${canal}',\n    '${gestores}',\n    coalesce(g.horas_laborables, 0),\n    '${diasLab}',\n    '${obs}',\n    g.marcaciones_realizadas,\n    g.gestiones_realizadas,\n    g.contactos_directos,\n    g.compromisos_de_pago_generados,\n    0,\n    g.numero_clientes_marcados,\n    g.clientes_gestionados,\n    g.numero_clientes_recuperados,\n    CASE\n      WHEN ga.avg_gap_seconds IS NULL THEN NULL\n      ELSE lpad(floor(ga.avg_gap_seconds / 60)::text, 2, '0') || ':' || lpad((round(ga.avg_gap_seconds)::int % 60)::text, 2, '0')\n    END AS tiempo_entre_llamadas\n  FROM grouped g\n  LEFT JOIN gap_agg ga\n    ON ga.fecha = g.fecha\n   AND ga.estrategia_o_equipo = g.estrategia_o_equipo\n   AND ga.producto = g.producto\n  ON CONFLICT (fecha, estrategia_o_equipo, producto)\n  DO UPDATE SET\n    cedente = EXCLUDED.cedente,\n    tipo_cartera = EXCLUDED.tipo_cartera,\n    canal_gestion = EXCLUDED.canal_gestion,\n    gestores_asignados = EXCLUDED.gestores_asignados,\n    horas_laborables = EXCLUDED.horas_laborables,\n    dias_laborados = EXCLUDED.dias_laborados,\n    observaciones = EXCLUDED.observaciones,\n    marcaciones_realizadas = EXCLUDED.marcaciones_realizadas,\n    gestiones_realizadas = EXCLUDED.gestiones_realizadas,\n    contactos_directos = EXCLUDED.contactos_directos,\n    compromisos_de_pago_generados = EXCLUDED.compromisos_de_pago_generados,\n    compromisos_de_pago_cumplidos = EXCLUDED.compromisos_de_pago_cumplidos,\n    numero_clientes_marcados = EXCLUDED.numero_clientes_marcados,\n    clientes_gestionados = EXCLUDED.clientes_gestionados,\n    numero_clientes_recuperados = EXCLUDED.numero_clientes_recuperados,\n    tiempo_entre_llamadas = EXCLUDED.tiempo_entre_llamadas,\n    updated_at = now()\n  RETURNING fecha, estrategia_o_equipo, producto, marcaciones_realizadas, gestiones_realizadas, contactos_directos, compromisos_de_pago_generados;`;\n})() }}",
-                "options": {}
-            },
-            "type": "n8n-nodes-base.postgres",
-            "typeVersion": 2.5,
-            "position": [
-                15040,
-                2860
-            ],
-            "id": "a1716190-6c58-4665-aaf0-78eb9523a8f8",
-            "name": "UPSERT PRODUCTIVIDAD (DIA)",
-            "credentials": {
-                "postgres": {
-                    "id": "Iz7EEp0WgJu3LXhn",
-                    "name": "Gea_postgress"
-                }
+  "name": "Solidario-ReporteProductividad",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 21 * * 1-6"
             }
-        },
-        {
-            "parameters": {
-                "operation": "executeQuery",
-                "query": "={{ (() => {\n  const cfg = $items('CONFIG INICIAL', 0, 0)[0].json.cfg;\n  const forDate = String(cfg.report.forDate).replace(/'/g, \"''\");\n  return `SELECT\n    to_char(fecha::date, 'DD-MM-YYYY') AS fecha,\n    cedente,\n    tipo_cartera,\n    producto,\n    estrategia_o_equipo,\n    canal_gestion,\n    gestores_asignados,\n    horas_laborables,\n    dias_laborados,\n    observaciones,\n    marcaciones_realizadas,\n    gestiones_realizadas,\n    contactos_directos,\n    compromisos_de_pago_generados,\n    compromisos_de_pago_cumplidos,\n    numero_clientes_marcados,\n    clientes_gestionados,\n    numero_clientes_recuperados,\n    tiempo_entre_llamadas\n  FROM public.solidario_reporte_productividad\n  WHERE fecha='${forDate}'::date\n  ORDER BY estrategia_o_equipo, producto;`;\n})() }}",
-                "options": {}
-            },
-            "type": "n8n-nodes-base.postgres",
-            "typeVersion": 2.5,
-            "position": [
-                15320,
-                2860
-            ],
-            "id": "4a71f9ec-db45-47e3-89f8-c1a2079ea53f",
-            "name": "CONSULTA PRODUCTIVIDAD (DIA)",
-            "credentials": {
-                "postgres": {
-                    "id": "Iz7EEp0WgJu3LXhn",
-                    "name": "Gea_postgress"
-                }
-            }
-        },
-        {
-            "parameters": {
-                "jsCode": "const cfg = $items('CONFIG INICIAL', 0, 0)[0].json.cfg;\nconst dd = cfg.report.yyyymmdd;\n\nconst safeCount = (nodeName) => {\n  try {\n    return $items(nodeName, 0, 0).length;\n  } catch (e) {\n    return 0;\n  }\n};\n\nconst prodRows = safeCount('CONSULTA PRODUCTIVIDAD (DIA)');\nconst gestRows = safeCount('CONSULTA GESTION (DIA)');\n\nreturn [{\n  json: {\n    status: 'ok',\n    fecha_reporte: cfg.report.forDate,\n    carpeta_destino: cfg.report.exportFolderPath,\n    archivo_productividad: `reporte_productividad_${dd}.xlsx`,\n    archivo_gestion: `reporte_gestion_${dd}.xlsx`,\n    filas_productividad: prodRows,\n    filas_gestion: gestRows,\n    nota: 'Exportacion XLSX y carga SFTP ejecutadas',\n    advertencia: gestRows === 0 ? 'Rama gestion sin ejecucion o sin datos' : null,\n    ejecutar_descarga: cfg.report.ejecutarDescargaLlamadas\n  }\n}];"
-            },
-            "type": "n8n-nodes-base.code",
-            "typeVersion": 2,
-            "position": [
-                15900,
-                3040
-            ],
-            "id": "fab1ddec-b8d5-4595-9598-054dfee835e7",
-            "name": "RESUMEN EJECUCION"
-        },
-        {
-            "parameters": {
-                "operation": "executeQuery",
-                "query": "={{ (() => {\n  const cfg = $items('CONFIG INICIAL', 0, 0)[0].json.cfg;\n  const forDate = String(cfg.report.forDate).replace(/'/g, \"''\");\n  const tz = String(cfg.report.tz || 'America/Guayaquil').replace(/'/g, \"''\");\n  return `SELECT\n    'Solidario'::text AS \"Cedente\",\n    'BOT IA'::text AS \"Canal\",\n    num_operacion AS \"NumeroOperacion\",\n    user_name_gestion AS \"UserNameGestion\",\n    (\n      CASE\n        WHEN numero_telefono LIKE '+593%' THEN '0' || substr(numero_telefono, 5)\n        WHEN numero_telefono LIKE '593%' THEN '0' || substr(numero_telefono, 4)\n        WHEN numero_telefono LIKE '09%' THEN numero_telefono\n        ELSE numero_telefono\n      END\n    )::text AS \"NumeroTelefono\",\n    observacion AS \"Observacion\",\n    respuesta AS \"Respuesta\",\n    to_char((fecha AT TIME ZONE '${tz}')::date, 'DD-MM-YYYY') AS \"Fecha\",\n    id_llamada AS \"ID Llamada\",\n    hora_gestion AS \"Hora de Gestión\",\n    CASE WHEN fecha_promesa IS NULL THEN NULL ELSE to_char(fecha_promesa::date, 'DD-MM-YYYY') END AS \"Fecha Promesa\"\n  FROM public.solidario_reporte_gestion\n  WHERE (fecha AT TIME ZONE '${tz}')::date = '${forDate}'::date\n  ORDER BY fecha, num_operacion;`;\n})() }}",
-                "options": {}
-            },
-            "type": "n8n-nodes-base.postgres",
-            "typeVersion": 2.5,
-            "position": [
-                14980,
-                3260
-            ],
-            "id": "13ebb72a-717d-4aa4-b91c-bd6f63639072",
-            "name": "CONSULTA GESTION (DIA)",
-            "credentials": {
-                "postgres": {
-                    "id": "Iz7EEp0WgJu3LXhn",
-                    "name": "Gea_postgress"
-                }
-            }
-        },
-        {
-            "parameters": {
-                "operation": "toFile",
-                "fileFormat": "xlsx",
-                "options": {}
-            },
-            "type": "n8n-nodes-base.spreadsheetFile",
-            "typeVersion": 2,
-            "position": [
-                15240,
-                3100
-            ],
-            "id": "c931448b-57b8-475e-b967-ee7db970c322",
-            "name": "XLSX PRODUCTIVIDAD"
-        },
-        {
-            "parameters": {
-                "operation": "toFile",
-                "fileFormat": "xlsx",
-                "options": {}
-            },
-            "type": "n8n-nodes-base.spreadsheetFile",
-            "typeVersion": 2,
-            "position": [
-                15240,
-                3260
-            ],
-            "id": "3fa0c61a-b83d-4d1b-a26f-497b47c7730f",
-            "name": "XLSX GESTION"
-        },
-        {
-            "parameters": {
-                "protocol": "sftp",
-                "operation": "upload",
-                "path": "={{ (() => {\n  const cfg = $items('CONFIG INICIAL',0,0)[0].json.cfg;\n  const dd = cfg.report.yyyymmdd;\n  return `${cfg.report.exportFolderPath}/reporte_productividad_${dd}.xlsx`;\n})() }}"
-            },
-            "type": "n8n-nodes-base.ftp",
-            "typeVersion": 1,
-            "position": [
-                15500,
-                3100
-            ],
-            "id": "5432d35f-2a47-414e-8c3d-39279c12c5a3",
-            "name": "SUBIR PRODUCTIVIDAD SFTP",
-            "credentials": {
-                "sftp": {
-                    "id": "vEofEOfYOxdhgSvj",
-                    "name": "SFTP account"
-                }
-            }
-        },
-        {
-            "parameters": {
-                "protocol": "sftp",
-                "operation": "upload",
-                "path": "={{ (() => {\n  const cfg = $items('CONFIG INICIAL',0,0)[0].json.cfg;\n  const dd = cfg.report.yyyymmdd;\n  return `${cfg.report.exportFolderPath}/reporte_gestion_${dd}.xlsx`;\n})() }}"
-            },
-            "type": "n8n-nodes-base.ftp",
-            "typeVersion": 1,
-            "position": [
-                15500,
-                3260
-            ],
-            "id": "b58fdfb4-dfb5-4b7f-a8d2-2425168300f4",
-            "name": "SUBIR GESTION SFTP",
-            "credentials": {
-                "sftp": {
-                    "id": "vEofEOfYOxdhgSvj",
-                    "name": "SFTP account"
-                }
-            }
-        },
-        {
-            "parameters": {
-                "jsCode": "const cfg = $items('CONFIG INICIAL', 0, 0)[0].json.cfg;\nconst apiKey = cfg.vapi.apiKey;\nconst assistants = [cfg.vapi.assistants.PREVENTIVA, cfg.vapi.assistants.COBROS];\n\nconst forDate = cfg.report.forDate;\nconst createdAtGe = new Date(`${forDate}T00:00:00.000-05:00`).toISOString();\nconst createdAtLe = new Date(`${forDate}T23:59:59.999-05:00`).toISOString();\n\nlet allCalls = [];\n\nfor (const assistantId of assistants) {\n  if (!assistantId) continue;\n  const options = {\n    method: 'GET',\n    url: 'https://api.vapi.ai/call',\n    qs: {\n      assistantId: assistantId,\n      createdAtGe: createdAtGe,\n      createdAtLe: createdAtLe,\n      limit: 1000\n    },\n    headers: { 'Authorization': `Bearer ${apiKey}` },\n    json: true\n  };\n  \n  try {\n    const response = await this.helpers.request(options);\n    const results = response.results || response;\n    if (Array.isArray(results)) {\n      results.forEach(c => {\n        allCalls.push({\n          call_id: c.id,\n          agente_tipo: assistantId === cfg.vapi.assistants.PREVENTIVA ? 'PREVENTIVA' : 'COBROS',\n          exportFolderPath: cfg.report.exportFolderPath,\n          createdAt: (c.createdAt || '').replace(/:/g, '-')\n        });\n      });\n    }\n  } catch (err) {\n    console.error(\"Error fetching Vapi calls\", err);\n  }\n}\n\nif (allCalls.length === 0) {\n  return []; \n}\nreturn allCalls.map(c => ({ json: c }));"
-            },
-            "type": "n8n-nodes-base.code",
-            "typeVersion": 2,
-            "position": [
-                16640,
-                3040
-            ],
-            "id": "9abfee58-ef87-4066-b33f-a1051fb9ad3b",
-            "name": "LISTAR IDS LLAMADAS VAPI"
-        },
-        {
-            "parameters": {
-                "options": {}
-            },
-            "type": "n8n-nodes-base.splitInBatches",
-            "typeVersion": 3,
-            "position": [
-                16900,
-                3040
-            ],
-            "id": "827ee87b-3ad4-4700-9dda-043c7dfd98bd",
-            "name": "SPLIT DESCARGAS"
-        },
-        {
-            "parameters": {
-                "url": "=https://api.vapi.ai/call/{{ $json.call_id }}",
-                "sendHeaders": true,
-                "headerParameters": {
-                    "parameters": [
-                        {
-                            "name": "Authorization",
-                            "value": "={{ 'Bearer ' + $items('CONFIG INICIAL', 0, 0)[0].json.cfg.vapi.apiKey }}"
-                        }
-                    ]
-                },
-                "options": {}
-            },
-            "type": "n8n-nodes-base.httpRequest",
-            "typeVersion": 4.2,
-            "position": [
-                17140,
-                3240
-            ],
-            "id": "58412252-e84c-4e98-a8d8-5b32177c6046",
-            "name": "OBTENER DETALLE LLAMADA",
-            "retryOnFail": true,
-            "maxTries": 3,
-            "waitBetweenTries": 2000,
-            "onError": "continueErrorOutput"
-        },
-        {
-            "parameters": {
-                "jsCode": "const details = $json;\nconst artifact = details.artifact || {};\nconst audioUrl = artifact.recordingUrlMp3 \n  || artifact.mp3RecordingUrl \n  || artifact.recordingUrl \n  || artifact.stereoRecordingUrl \n  || null;\n\nlet ext = 'wav';\nif (audioUrl && audioUrl.toLowerCase().includes('.mp3')) {\n  ext = 'mp3';\n}\n\nconst batchItem = $('SPLIT DESCARGAS').first().json;\n\nreturn [{\n  json: {\n    call_id: batchItem.call_id,\n    mp3_url: audioUrl,\n    has_audio: !!audioUrl,\n    ext: ext,\n    exportFolderPath: batchItem.exportFolderPath,\n    createdAt: batchItem.createdAt\n  }\n}];"
-            },
-            "type": "n8n-nodes-base.code",
-            "typeVersion": 2,
-            "position": [
-                17400,
-                3240
-            ],
-            "id": "931f576c-a378-4dff-8af7-9c1f53a51aff",
-            "name": "EXTRAER URL AUDIO"
-        },
-        {
-            "parameters": {
-                "conditions": {
-                    "options": {
-                        "caseSensitive": true,
-                        "leftValue": "",
-                        "typeValidation": "strict",
-                        "version": 2
-                    },
-                    "conditions": [
-                        {
-                            "id": "c1",
-                            "leftValue": "={{ $json.has_audio }}",
-                            "rightValue": true,
-                            "operator": {
-                                "type": "boolean",
-                                "operation": "true",
-                                "singleValue": true
-                            }
-                        }
-                    ],
-                    "combinator": "and"
-                },
-                "options": {}
-            },
-            "type": "n8n-nodes-base.if",
-            "typeVersion": 2.2,
-            "position": [
-                17640,
-                3240
-            ],
-            "id": "207f9184-44a6-4037-815b-121a5ec87876",
-            "name": "TIENE AUDIO?"
-        },
-        {
-            "parameters": {
-                "url": "={{ $json.mp3_url }}",
-                "options": {
-                    "timeout": 300000
-                }
-            },
-            "type": "n8n-nodes-base.httpRequest",
-            "typeVersion": 4.2,
-            "position": [
-                17940,
-                3140
-            ],
-            "id": "efecaefe-8564-440c-ab62-e6cc672a693d",
-            "name": "DESCARGAR AUDIO MP3",
-            "retryOnFail": true,
-            "maxTries": 3,
-            "waitBetweenTries": 5000,
-            "onError": "continueErrorOutput"
-        },
-        {
-            "parameters": {
-                "protocol": "sftp",
-                "operation": "upload",
-                "path": "={{ $json.exportFolderPath }}/llamadas/{{ $json.createdAt }}_{{ $json.call_id }}.{{ $json.ext }}"
-            },
-            "type": "n8n-nodes-base.ftp",
-            "typeVersion": 1,
-            "position": [
-                18200,
-                3140
-            ],
-            "id": "020f2e88-d2d8-433c-96fe-78e1cdf0fb19",
-            "name": "SUBIR AUDIO SFTP",
-            "credentials": {
-                "sftp": {
-                    "id": "vEofEOfYOxdhgSvj",
-                    "name": "SFTP account"
-                }
-            }
-        },
-        {
-            "parameters": {
-                "jsCode": "await new Promise(resolve => setTimeout(resolve, 10000));\nreturn $input.all();"
-            },
-            "type": "n8n-nodes-base.code",
-            "typeVersion": 2,
-            "position": [
-                18440,
-                3140
-            ],
-            "id": "31fee2d1-d4af-4379-a277-999fea31f890",
-            "name": "ESPERAR 10s"
-        },
-        {
-            "parameters": {
-                "conditions": {
-                    "options": {
-                        "caseSensitive": true,
-                        "leftValue": "",
-                        "typeValidation": "strict"
-                    },
-                    "conditions": [
-                        {
-                            "id": "b299ba24-23e0-4e66-87c0-71fffdb7a4be",
-                            "leftValue": "={{ $json.ejecutar_descarga }}",
-                            "rightValue": true,
-                            "operator": {
-                                "type": "boolean",
-                                "operation": "equals"
-                            }
-                        }
-                    ],
-                    "combinator": "and"
-                }
-            },
-            "type": "n8n-nodes-base.if",
-            "typeVersion": 2,
-            "position": [
-                1300,
-                0
-            ],
-            "id": "ab1674c3-6c3a-4507-aa89-fb25a5e6c77b",
-            "name": "EJECUTAR DESCARGA?"
-        },
-        {
-            "parameters": {
-                "jsCode": "return items;"
-            },
-            "type": "n8n-nodes-base.code",
-            "typeVersion": 2,
-            "position": [
-                1300,
-                320
-            ],
-            "id": "4e56f50b-8ec1-481c-85e0-7cecf111f41b",
-            "name": "FIN (NoOp)"
+          ]
         }
-    ],
-    "pinData": {},
-    "connections": {
-        "Cron Productividad 21h (L-S)": {
-            "main": [
-                [
-                    {
-                        "node": "CONFIG INICIAL",
-                        "type": "main",
-                        "index": 0
-                    }
-                ]
-            ]
-        },
-        "CONFIG INICIAL": {
-            "main": [
-                [
-                    {
-                        "node": "UPSERT PRODUCTIVIDAD (DIA)",
-                        "type": "main",
-                        "index": 0
-                    }
-                ]
-            ]
-        },
-        "UPSERT PRODUCTIVIDAD (DIA)": {
-            "main": [
-                [
-                    {
-                        "node": "CONSULTA PRODUCTIVIDAD (DIA)",
-                        "type": "main",
-                        "index": 0
-                    }
-                ]
-            ]
-        },
-        "CONSULTA PRODUCTIVIDAD (DIA)": {
-            "main": [
-                [
-                    {
-                        "node": "XLSX PRODUCTIVIDAD",
-                        "type": "main",
-                        "index": 0
-                    }
-                ]
-            ]
-        },
-        "XLSX PRODUCTIVIDAD": {
-            "main": [
-                [
-                    {
-                        "node": "SUBIR PRODUCTIVIDAD SFTP",
-                        "type": "main",
-                        "index": 0
-                    }
-                ]
-            ]
-        },
-        "SUBIR PRODUCTIVIDAD SFTP": {
-            "main": [
-                [
-                    {
-                        "node": "CONSULTA GESTION (DIA)",
-                        "type": "main",
-                        "index": 0
-                    }
-                ]
-            ]
-        },
-        "CONSULTA GESTION (DIA)": {
-            "main": [
-                [
-                    {
-                        "node": "XLSX GESTION",
-                        "type": "main",
-                        "index": 0
-                    }
-                ]
-            ]
-        },
-        "XLSX GESTION": {
-            "main": [
-                [
-                    {
-                        "node": "SUBIR GESTION SFTP",
-                        "type": "main",
-                        "index": 0
-                    }
-                ]
-            ]
-        },
-        "SUBIR GESTION SFTP": {
-            "main": [
-                [
-                    {
-                        "node": "RESUMEN EJECUCION",
-                        "type": "main",
-                        "index": 0
-                    }
-                ]
-            ]
-        },
-        "RESUMEN EJECUCION": {
-            "main": [
-                [
-                    {
-                        "node": "EJECUTAR DESCARGA?",
-                        "type": "main",
-                        "index": 0
-                    }
-                ]
-            ]
-        },
-        "EJECUTAR DESCARGA?": {
-            "main": [
-                [
-                    {
-                        "node": "LISTAR IDS LLAMADAS VAPI",
-                        "type": "main",
-                        "index": 0
-                    }
-                ],
-                [
-                    {
-                        "node": "FIN (NoOp)",
-                        "type": "main",
-                        "index": 0
-                    }
-                ]
-            ]
-        },
-        "LISTAR IDS LLAMADAS VAPI": {
-            "main": [
-                [
-                    {
-                        "node": "SPLIT DESCARGAS",
-                        "type": "main",
-                        "index": 0
-                    }
-                ]
-            ]
-        },
-        "SPLIT DESCARGAS": {
-            "main": [
-                [],
-                [
-                    {
-                        "node": "OBTENER DETALLE LLAMADA",
-                        "type": "main",
-                        "index": 0
-                    }
-                ]
-            ]
-        },
-        "OBTENER DETALLE LLAMADA": {
-            "main": [
-                [
-                    {
-                        "node": "EXTRAER URL AUDIO",
-                        "type": "main",
-                        "index": 0
-                    }
-                ]
-            ]
-        },
-        "EXTRAER URL AUDIO": {
-            "main": [
-                [
-                    {
-                        "node": "TIENE AUDIO?",
-                        "type": "main",
-                        "index": 0
-                    }
-                ]
-            ]
-        },
-        "TIENE AUDIO?": {
-            "main": [
-                [
-                    {
-                        "node": "DESCARGAR AUDIO MP3",
-                        "type": "main",
-                        "index": 0
-                    }
-                ],
-                [
-                    {
-                        "node": "SPLIT DESCARGAS",
-                        "type": "main",
-                        "index": 0
-                    }
-                ]
-            ]
-        },
-        "DESCARGAR AUDIO MP3": {
-            "main": [
-                [
-                    {
-                        "node": "SUBIR AUDIO SFTP",
-                        "type": "main",
-                        "index": 0
-                    }
-                ]
-            ]
-        },
-        "SUBIR AUDIO SFTP": {
-            "main": [
-                [
-                    {
-                        "node": "ESPERAR 10s",
-                        "type": "main",
-                        "index": 0
-                    }
-                ]
-            ]
-        },
-        "ESPERAR 10s": {
-            "main": [
-                [
-                    {
-                        "node": "SPLIT DESCARGAS",
-                        "type": "main",
-                        "index": 0
-                    }
-                ]
-            ]
-        },
-        "FIN (NoOp)": {
-            "main": [
-                []
-            ]
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "9ca5edc0-abb7-4cd4-b179-bc867f5cc386",
+      "name": "Cron Productividad 21h (L-S)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// === CONFIGURACION (editar antes de ejecutar) ===\nconst MODO_FECHA = 'FECHA_ESPECIFICA';                // 'HOY' o 'FECHA_ESPECIFICA'\nconst FECHA_ESPECIFICA = '2026-05-06';   // solo se usa si MODO_FECHA = 'FECHA_ESPECIFICA'\nconst EJECUTAR_DESCARGA = true;          // true = descargar audios, false = solo reportes\nconst VAPI_API_KEY = '484afd71-2703-4852-8580-9629620dde82';\nconst VAPI_ASSISTANT_PREVENTIVA = 'aa95f1ca-a21a-4445-b7ff-bc414774d805';\nconst VAPI_ASSISTANT_COBROS = 'dbb81b6f-8e6b-4b18-9db6-6a4fcf9dca37';\n\nreturn items.map((item) => {\n  const tz = 'America/Guayaquil';\n\n  let forDate;\n  if (MODO_FECHA === 'FECHA_ESPECIFICA') {\n    forDate = FECHA_ESPECIFICA;\n  } else {\n    const nowLocal = new Date(new Date().toLocaleString('en-US', { timeZone: tz }));\n    const yyyy = nowLocal.getFullYear();\n    const mm = String(nowLocal.getMonth() + 1).padStart(2, '0');\n    const dd = String(nowLocal.getDate()).padStart(2, '0');\n    forDate = `${yyyy}-${mm}-${dd}`;\n  }\n\n  const yyyymmdd = forDate.replace(/-/g, '');\n\n  item.json.cfg = {\n    report: {\n      tz,\n      forDate,\n      yyyymmdd,\n      exportBasePath: './public_html/BANCO_SOLIDARIO',\n      exportFolderPath: `./public_html/BANCO_SOLIDARIO/${yyyymmdd}`,\n      cedente: 'BANCO SOLIDARIO',\n      tipoCartera: 'Administrativo',\n      canalGestion: 'VOZ IA',\n      gestoresAsignados: '1',\n      diasLaborados: '1',\n      observaciones: ' ',\n      ejecutarDescargaLlamadas: EJECUTAR_DESCARGA\n    },\n    vapi: {\n      baseUrl: 'https://api.vapi.ai',\n      apiKey: VAPI_API_KEY,\n      assistants: {\n        PREVENTIVA: VAPI_ASSISTANT_PREVENTIVA,\n        COBROS: VAPI_ASSISTANT_COBROS\n      }\n    },\n    agents: {\n      COBROS: VAPI_ASSISTANT_COBROS,\n      PREVENTIVA: VAPI_ASSISTANT_PREVENTIVA\n    }\n  };\n\n  return item;\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ],
+      "id": "4cd939fe-c328-451b-9dd4-8a049ba8f9fe",
+      "name": "CONFIG INICIAL"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ (() => {\n  const cfg = $items('CONFIG INICIAL', 0, 0)[0].json.cfg;\n  const tz = String(cfg.report.tz || 'America/Guayaquil').replace(/'/g, \"''\");\n  const forDate = String(cfg.report.forDate).replace(/'/g, \"''\");\n  const cedente = String(cfg.report.cedente).replace(/'/g, \"''\");\n  const tipoCartera = String(cfg.report.tipoCartera).replace(/'/g, \"''\");\n  const canal = String(cfg.report.canalGestion).replace(/'/g, \"''\");\n  const gestores = String(cfg.report.gestoresAsignados).replace(/'/g, \"''\");\n  const diasLab = String(cfg.report.diasLaborados).replace(/'/g, \"''\");\n  const obs = String(cfg.report.observaciones).replace(/'/g, \"''\");\n\n  return `WITH params AS (\n    SELECT '${forDate}'::date AS fecha_local, '${tz}'::text AS tz\n  ),\n  base AS (\n    SELECT\n      p.fecha_local AS fecha,\n      CASE\n        WHEN btrim(coalesce(r.dias_retraso,'')) LIKE '-%' THEN 'preventiva'\n        WHEN btrim(coalesce(r.dias_retraso,'')) LIKE '+%' THEN 'flujo/mora'\n        WHEN r.fecha_vencimiento IS NOT NULL AND (l.fecha_gestion AT TIME ZONE p.tz)::date <= r.fecha_vencimiento THEN 'preventiva'\n        ELSE 'flujo/mora'\n      END AS estrategia_o_equipo,\n      CASE\n        WHEN upper(btrim(coalesce(r.producto,''))) = 'UNICREDITO' THEN 'UNICREDITO'\n        ELSE 'CASAS COMERCIALES'\n      END AS producto_agrupado,\n      l.cedula,\n      l.contactoalo,\n      l.contactoefectivo,\n      l.aceptacion,\n      l.hora_inicio_llamada,\n      l.hora_fin_llamada,\n      l.fecha_gestion\n    FROM public.solidario_llamadas l\n    LEFT JOIN public.solidario_registros r ON r.num_operacion = l.num_operacion\n    CROSS JOIN params p\n    WHERE l.fecha_gestion >= (p.fecha_local::timestamp AT TIME ZONE p.tz)\n      AND l.fecha_gestion < ((p.fecha_local + 1)::timestamp AT TIME ZONE p.tz)\n  ),\n  grouped AS (\n    SELECT\n      fecha,\n      estrategia_o_equipo,\n      producto_agrupado AS producto,\n      count(*)::int AS marcaciones_realizadas,\n      count(*) FILTER (WHERE contactoalo IS NOT NULL AND btrim(contactoalo) != '')::int AS gestiones_realizadas,\n      count(*) FILTER (WHERE coalesce(contactoefectivo,'')='Si')::int AS contactos_directos,\n      count(*) FILTER (WHERE coalesce(aceptacion,'')='Si')::int AS compromisos_de_pago_generados,\n      count(DISTINCT cedula) FILTER (WHERE cedula IS NOT NULL AND btrim(cedula) <> '')::int AS numero_clientes_marcados,\n      count(DISTINCT cedula) FILTER (WHERE contactoalo IS NOT NULL AND btrim(contactoalo) != '' AND cedula IS NOT NULL AND btrim(cedula) <> '')::int AS clientes_gestionados,\n      count(DISTINCT cedula) FILTER (WHERE coalesce(aceptacion,'')='Si' AND cedula IS NOT NULL AND btrim(cedula) <> '')::int AS numero_clientes_recuperados,\n      round(coalesce(extract(epoch FROM (max(hora_fin_llamada) - min(hora_inicio_llamada))) / 3600.0, 0)::numeric, 2) AS horas_laborables\n    FROM base\n    GROUP BY fecha, estrategia_o_equipo, producto_agrupado\n  ),\n  gaps AS (\n    SELECT\n      b.fecha,\n      b.estrategia_o_equipo,\n      b.producto_agrupado AS producto,\n      extract(epoch FROM (b.hora_inicio_llamada - lag(b.hora_fin_llamada) OVER (\n        PARTITION BY b.fecha, b.estrategia_o_equipo, b.producto_agrupado\n        ORDER BY coalesce(b.hora_inicio_llamada, b.fecha_gestion)\n      ))) AS gap_seconds\n    FROM base b\n    WHERE b.hora_inicio_llamada IS NOT NULL\n  ),\n  gap_agg AS (\n    SELECT\n      fecha,\n      estrategia_o_equipo,\n      producto,\n      avg(gap_seconds) FILTER (WHERE gap_seconds IS NOT NULL AND gap_seconds >= 0) AS avg_gap_seconds\n    FROM gaps\n    GROUP BY fecha, estrategia_o_equipo, producto\n  )\n  INSERT INTO public.solidario_reporte_productividad (\n    fecha,\n    cedente,\n    tipo_cartera,\n    producto,\n    estrategia_o_equipo,\n    canal_gestion,\n    gestores_asignados,\n    horas_laborables,\n    dias_laborados,\n    observaciones,\n    marcaciones_realizadas,\n    gestiones_realizadas,\n    contactos_directos,\n    compromisos_de_pago_generados,\n    compromisos_de_pago_cumplidos,\n    numero_clientes_marcados,\n    clientes_gestionados,\n    numero_clientes_recuperados,\n    tiempo_entre_llamadas\n  )\n  SELECT\n    g.fecha,\n    '${cedente}',\n    '${tipoCartera}',\n    g.producto,\n    g.estrategia_o_equipo,\n    '${canal}',\n    '${gestores}',\n    coalesce(g.horas_laborables, 0),\n    '${diasLab}',\n    '${obs}',\n    g.marcaciones_realizadas,\n    g.gestiones_realizadas,\n    g.contactos_directos,\n    g.compromisos_de_pago_generados,\n    0,\n    g.numero_clientes_marcados,\n    g.clientes_gestionados,\n    g.numero_clientes_recuperados,\n    CASE\n      WHEN ga.avg_gap_seconds IS NULL THEN NULL\n      ELSE lpad(floor(ga.avg_gap_seconds / 60)::text, 2, '0') || ':' || lpad((round(ga.avg_gap_seconds)::int % 60)::text, 2, '0')\n    END AS tiempo_entre_llamadas\n  FROM grouped g\n  LEFT JOIN gap_agg ga\n    ON ga.fecha = g.fecha\n   AND ga.estrategia_o_equipo = g.estrategia_o_equipo\n   AND ga.producto = g.producto\n  ON CONFLICT (fecha, estrategia_o_equipo, producto)\n  DO UPDATE SET\n    cedente = EXCLUDED.cedente,\n    tipo_cartera = EXCLUDED.tipo_cartera,\n    canal_gestion = EXCLUDED.canal_gestion,\n    gestores_asignados = EXCLUDED.gestores_asignados,\n    horas_laborables = EXCLUDED.horas_laborables,\n    dias_laborados = EXCLUDED.dias_laborados,\n    observaciones = EXCLUDED.observaciones,\n    marcaciones_realizadas = EXCLUDED.marcaciones_realizadas,\n    gestiones_realizadas = EXCLUDED.gestiones_realizadas,\n    contactos_directos = EXCLUDED.contactos_directos,\n    compromisos_de_pago_generados = EXCLUDED.compromisos_de_pago_generados,\n    compromisos_de_pago_cumplidos = EXCLUDED.compromisos_de_pago_cumplidos,\n    numero_clientes_marcados = EXCLUDED.numero_clientes_marcados,\n    clientes_gestionados = EXCLUDED.clientes_gestionados,\n    numero_clientes_recuperados = EXCLUDED.numero_clientes_recuperados,\n    tiempo_entre_llamadas = EXCLUDED.tiempo_entre_llamadas,\n    updated_at = now()\n  RETURNING fecha, estrategia_o_equipo, producto, marcaciones_realizadas, gestiones_realizadas, contactos_directos, compromisos_de_pago_generados;`;\n})() }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        540,
+        0
+      ],
+      "id": "7500ae2c-c7a5-4877-90cd-8d27ff6d8031",
+      "name": "UPSERT PRODUCTIVIDAD (DIA)",
+      "credentials": {
+        "postgres": {
+          "id": "Iz7EEp0WgJu3LXhn",
+          "name": "Gea_postgress"
         }
+      }
     },
-    "active": false,
-    "settings": {
-        "executionOrder": "v1"
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ (() => {\n  const cfg = $items('CONFIG INICIAL', 0, 0)[0].json.cfg;\n  const forDate = String(cfg.report.forDate).replace(/'/g, \"''\");\n  return `SELECT\n    to_char(fecha::date, 'YYYY-MM-DD') AS fecha,\n    cedente,\n    tipo_cartera,\n    producto,\n    estrategia_o_equipo,\n    canal_gestion,\n    gestores_asignados,\n    horas_laborables,\n    dias_laborados,\n    observaciones,\n    marcaciones_realizadas,\n    gestiones_realizadas,\n    contactos_directos,\n    compromisos_de_pago_generados,\n    compromisos_de_pago_cumplidos,\n    numero_clientes_marcados,\n    clientes_gestionados,\n    numero_clientes_recuperados,\n    tiempo_entre_llamadas\n  FROM public.solidario_reporte_productividad\n  WHERE fecha='${forDate}'::date\n  ORDER BY estrategia_o_equipo, producto;`;\n})() }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1180,
+        0
+      ],
+      "id": "b918e33c-7270-4d91-929a-ee26c53b4a76",
+      "name": "CONSULTA PRODUCTIVIDAD (DIA)",
+      "credentials": {
+        "postgres": {
+          "id": "Iz7EEp0WgJu3LXhn",
+          "name": "Gea_postgress"
+        }
+      }
     },
-    "versionId": "0731ab13-8d7b-460b-b087-cd7d811c6f54",
-    "meta": {
-        "instanceId": "915a7f7568d882a64f47657d6f3fab09c88f51183cb22a1bfa48ee39cc137bcd"
+    {
+      "parameters": {
+        "jsCode": "const cfg = $items('CONFIG INICIAL', 0, 0)[0].json.cfg;\nconst dd = cfg.report.yyyymmdd;\n\nconst safeCount = (nodeName) => {\n  try {\n    return $items(nodeName, 0, 0).length;\n  } catch (e) {\n    return 0;\n  }\n};\n\nconst prodRows = safeCount('CONSULTA PRODUCTIVIDAD (DIA)');\nconst gestRows = safeCount('CONSULTA GESTION (DIA)');\n\nreturn [{\n  json: {\n    status: 'ok',\n    fecha_reporte: cfg.report.forDate,\n    carpeta_destino: cfg.report.exportFolderPath,\n    archivo_productividad: `reporte_productividad_${dd}.xlsx`,\n    archivo_gestion: `reporte_gestion_${dd}.xlsx`,\n    filas_productividad: prodRows,\n    filas_gestion: gestRows,\n    nota: 'Exportacion XLSX y carga SFTP ejecutadas',\n    advertencia: gestRows === 0 ? 'Rama gestion sin ejecucion o sin datos' : null,\n    ejecutar_descarga: cfg.report.ejecutarDescargaLlamadas\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        240
+      ],
+      "id": "8883e534-b201-45f4-8b14-8070f5c128ec",
+      "name": "RESUMEN EJECUCION"
     },
-    "id": "WuX1b6Wt0L7heQcH",
-    "tags": []
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ (() => {\n  const cfg = $items('CONFIG INICIAL', 0, 0)[0].json.cfg;\n  const forDate = String(cfg.report.forDate).replace(/'/g, \"''\");\n  const tz = String(cfg.report.tz || 'America/Guayaquil').replace(/'/g, \"''\");\n  return `SELECT\n    'Solidario'::text AS \"Cedente\",\n    'BOT IA'::text AS \"Canal\",\n    num_operacion AS \"NumeroOperacion\",\n    user_name_gestion AS \"UserNameGestion\",\n    (\n      CASE\n        WHEN numero_telefono LIKE '+593%' THEN '0' || substr(numero_telefono, 5)\n        WHEN numero_telefono LIKE '593%' THEN '0' || substr(numero_telefono, 4)\n        WHEN numero_telefono LIKE '09%' THEN numero_telefono\n        ELSE numero_telefono\n      END\n    )::text AS \"NumeroTelefono\",\n    observacion AS \"Observacion\",\n    respuesta AS \"Respuesta\",\n    CASE WHEN fecha_promesa IS NULL THEN NULL ELSE to_char(fecha_promesa::date, 'YYYY-MM-DD') END AS \"Fecha Compromiso\",\n    to_char((fecha AT TIME ZONE '${tz}')::date, 'YYYY-MM-DD') AS \"Fecha\",\n    hora_gestion AS \"Hora\",\n    id_llamada AS \"ID Llamada\"\n  FROM public.solidario_reporte_gestion\n  WHERE (fecha AT TIME ZONE '${tz}')::date = '${forDate}'::date\n  ORDER BY fecha, num_operacion;`;\n})() }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        820,
+        440
+      ],
+      "id": "0dfe6345-2973-4e50-978e-be05a8593ed4",
+      "name": "CONSULTA GESTION (DIA)",
+      "credentials": {
+        "postgres": {
+          "id": "Iz7EEp0WgJu3LXhn",
+          "name": "Gea_postgress"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "toFile",
+        "fileFormat": "xlsx",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        240
+      ],
+      "id": "0ca8b2e0-3b2f-45b0-a66b-20c2eba84cc3",
+      "name": "XLSX PRODUCTIVIDAD"
+    },
+    {
+      "parameters": {
+        "operation": "toFile",
+        "fileFormat": "xlsx",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        440
+      ],
+      "id": "d8d4ccf5-42a8-47c8-a27e-4ade40ce0273",
+      "name": "XLSX GESTION"
+    },
+    {
+      "parameters": {
+        "protocol": "sftp",
+        "operation": "upload",
+        "path": "={{ (() => {\n  const cfg = $items('CONFIG INICIAL',0,0)[0].json.cfg;\n  const dd = cfg.report.yyyymmdd;\n  return `${cfg.report.exportFolderPath}/reporte_productividad_${dd}.xlsx`;\n})() }}"
+      },
+      "type": "n8n-nodes-base.ftp",
+      "typeVersion": 1,
+      "position": [
+        1360,
+        240
+      ],
+      "id": "77b12bc3-a7b2-4628-a294-701fb4e65db8",
+      "name": "SUBIR PRODUCTIVIDAD SFTP",
+      "credentials": {
+        "sftp": {
+          "id": "vEofEOfYOxdhgSvj",
+          "name": "SFTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "protocol": "sftp",
+        "operation": "upload",
+        "path": "={{ (() => {\n  const cfg = $items('CONFIG INICIAL',0,0)[0].json.cfg;\n  const dd = cfg.report.yyyymmdd;\n  return `${cfg.report.exportFolderPath}/reporte_gestion_${dd}.xlsx`;\n})() }}"
+      },
+      "type": "n8n-nodes-base.ftp",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        440
+      ],
+      "id": "835dfd85-4f33-4d2b-bc2f-de56ea466f6e",
+      "name": "SUBIR GESTION SFTP",
+      "credentials": {
+        "sftp": {
+          "id": "vEofEOfYOxdhgSvj",
+          "name": "SFTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = $items('CONFIG INICIAL', 0, 0)[0].json.cfg;\nconst apiKey = cfg.vapi.apiKey;\nconst assistants = [cfg.vapi.assistants.PREVENTIVA, cfg.vapi.assistants.COBROS];\n\nconst forDate = cfg.report.forDate;\nconst createdAtGe = new Date(`${forDate}T00:00:00.000-05:00`).toISOString();\nconst createdAtLe = new Date(`${forDate}T23:59:59.999-05:00`).toISOString();\n\nlet allCalls = [];\n\nfor (const assistantId of assistants) {\n  if (!assistantId) continue;\n  const options = {\n    method: 'GET',\n    url: 'https://api.vapi.ai/call',\n    qs: {\n      assistantId: assistantId,\n      createdAtGe: createdAtGe,\n      createdAtLe: createdAtLe,\n      limit: 1000\n    },\n    headers: { 'Authorization': `Bearer ${apiKey}` },\n    json: true\n  };\n  \n  try {\n    const response = await this.helpers.request(options);\n    const results = response.results || response;\n    if (Array.isArray(results)) {\n      results.forEach(c => {\n        allCalls.push({\n          call_id: c.id,\n          agente_tipo: assistantId === cfg.vapi.assistants.PREVENTIVA ? 'PREVENTIVA' : 'COBROS',\n          exportFolderPath: cfg.report.exportFolderPath,\n          createdAt: (c.createdAt || '').replace(/:/g, '-')\n        });\n      });\n    }\n  } catch (err) {\n    console.error(\"Error fetching Vapi calls\", err);\n  }\n}\n\nif (allCalls.length === 0) {\n  return []; \n}\n// Filtrar IDs ya descargados en SFTP\nlet descargados = [];\ntry {\n  const sftpItem = $items('EXTRAER IDS DESCARGADOS', 0, 0);\n  if (sftpItem && sftpItem.json && Array.isArray(sftpItem.json.descargados)) {\n    descargados = sftpItem.json.descargados;\n  }\n} catch (e) {\n  // nodo no ejecutado o error, continuar sin filtrar\n}\nconst descargadosSet = new Set(descargados);\nconst pendientes = allCalls.filter(c => !descargadosSet.has(c.call_id));\nreturn pendientes.map(c => ({ json: c }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3220,
+        260
+      ],
+      "id": "f29ec1c0-9061-4570-8061-6addd8213341",
+      "name": "LISTAR IDS LLAMADAS VAPI"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        3440,
+        220
+      ],
+      "id": "c9a62b7d-3d80-4f4b-b695-0d03aa99af16",
+      "name": "SPLIT DESCARGAS"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.vapi.ai/call/{{ $json.call_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $items('CONFIG INICIAL', 0, 0)[0].json.cfg.vapi.apiKey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3680,
+        420
+      ],
+      "id": "75ded0fa-a6a7-4c09-b953-b1e23270277e",
+      "name": "OBTENER DETALLE LLAMADA",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const details = $json;\nconst artifact = details.artifact || {};\nconst audioUrl = artifact.recordingUrlMp3 \n  || artifact.mp3RecordingUrl \n  || artifact.recordingUrl \n  || artifact.stereoRecordingUrl \n  || null;\n\nlet ext = 'wav';\nif (audioUrl && audioUrl.toLowerCase().includes('.mp3')) {\n  ext = 'mp3';\n}\n\nconst batchItem = $('SPLIT DESCARGAS').first().json;\n\nreturn [{\n  json: {\n    call_id: batchItem.call_id,\n    mp3_url: audioUrl,\n    has_audio: !!audioUrl,\n    ext: ext,\n    exportFolderPath: batchItem.exportFolderPath,\n    createdAt: batchItem.createdAt\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3940,
+        420
+      ],
+      "id": "f2772ef1-9351-4c8d-94ba-bea727edeb01",
+      "name": "EXTRAER URL AUDIO"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.has_audio }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4180,
+        420
+      ],
+      "id": "d6b2aeb5-2725-4478-903b-13e272702351",
+      "name": "TIENE AUDIO?"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.mp3_url }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4480,
+        320
+      ],
+      "id": "9e091e87-16d1-4790-9c4e-058c3a19e4eb",
+      "name": "DESCARGAR AUDIO MP3",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "protocol": "sftp",
+        "operation": "upload",
+        "path": "={{ $json.exportFolderPath }}/llamadas/{{ $json.createdAt }}_{{ $json.call_id }}.{{ $json.ext }}"
+      },
+      "type": "n8n-nodes-base.ftp",
+      "typeVersion": 1,
+      "position": [
+        4740,
+        320
+      ],
+      "id": "799b74e5-a730-4fc9-a344-e33697ed78aa",
+      "name": "SUBIR AUDIO SFTP",
+      "credentials": {
+        "sftp": {
+          "id": "vEofEOfYOxdhgSvj",
+          "name": "SFTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "await new Promise(resolve => setTimeout(resolve, 10000));\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4980,
+        320
+      ],
+      "id": "fa954839-b1ee-4665-8c57-bd00758cce7e",
+      "name": "ESPERAR 10s"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "b299ba24-23e0-4e66-87c0-71fffdb7a4be",
+              "leftValue": "={{ $json.ejecutar_descarga }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2060,
+        200
+      ],
+      "id": "fe4c81de-88f8-4b5e-b15b-b69125849cde",
+      "name": "EJECUTAR DESCARGA?"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2060,
+        480
+      ],
+      "id": "00f4e1cd-fb4b-4cd0-923d-8eb6c49d35f5",
+      "name": "FIN (NoOp)"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [items[0]];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        820,
+        0
+      ],
+      "id": "c58d25fa-9342-4f0e-8091-c9b3bfb9efcf",
+      "name": "COLAPSAR A 1 ITEM"
+    },
+    {
+      "parameters": {
+        "protocol": "sftp",
+        "operation": "list",
+        "path": "={{ (() => {\n  const cfg = $items('CONFIG INICIAL', 0, 0)[0].json.cfg;\n  return `${cfg.report.exportFolderPath}/llamadas`;\n})() }}"
+      },
+      "type": "n8n-nodes-base.ftp",
+      "typeVersion": 1,
+      "position": [
+        2760,
+        200
+      ],
+      "id": "bb5bc71b-40e4-45a7-96cb-3c9141a7276d",
+      "name": "LISTAR SFTP LLAMADAS",
+      "credentials": {
+        "sftp": {
+          "id": "vEofEOfYOxdhgSvj",
+          "name": "SFTP account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const descargados = ($input.all() || [])\n  .map(item => {\n    const name = (item.json && item.json.name) || item.json || '';\n    if (!name) return null;\n    const lastUnderscore = name.lastIndexOf('_');\n    const lastDot = name.lastIndexOf('.');\n    if (lastUnderscore < 0 || lastDot < 0) return null;\n    return name.substring(lastUnderscore + 1, lastDot);\n  })\n  .filter(id => id && id.length > 0 && id !== '.keep');\n\nreturn [{ json: { descargados } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2980,
+        100
+      ],
+      "id": "9704d816-c857-401d-9dd0-399ffb2ec073",
+      "name": "EXTRAER IDS DESCARGADOS"
+    },
+    {
+      "parameters": {
+        "jsCode": "const binaryData = Buffer.from('', 'utf-8');\nreturn [{\n  json: {},\n  binary: {\n    data: {\n      data: binaryData.toString('base64'),\n      mimeType: 'application/octet-stream',\n      fileName: '.keep',\n      fileSize: binaryData.length\n    }\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2280,
+        100
+      ],
+      "id": "885d3299-b549-40d5-922b-42da962f710e",
+      "name": "CREAR BINARIO .KEEP"
+    },
+    {
+      "parameters": {
+        "protocol": "sftp",
+        "operation": "upload",
+        "path": "={{ (() => {\n  const cfg = $items('CONFIG INICIAL', 0, 0)[0].json.cfg;\n  return `${cfg.report.exportFolderPath}/llamadas/.keep`;\n})() }}"
+      },
+      "type": "n8n-nodes-base.ftp",
+      "typeVersion": 1,
+      "position": [
+        2500,
+        60
+      ],
+      "id": "0615e32e-1172-4703-80f9-ff00bb9d51cc",
+      "name": "CREAR CARPETA SFTP",
+      "credentials": {
+        "sftp": {
+          "id": "vEofEOfYOxdhgSvj",
+          "name": "SFTP account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Cron Productividad 21h (L-S)": {
+      "main": [
+        [
+          {
+            "node": "CONFIG INICIAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CONFIG INICIAL": {
+      "main": [
+        [
+          {
+            "node": "UPSERT PRODUCTIVIDAD (DIA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPSERT PRODUCTIVIDAD (DIA)": {
+      "main": [
+        [
+          {
+            "node": "COLAPSAR A 1 ITEM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "COLAPSAR A 1 ITEM": {
+      "main": [
+        [
+          {
+            "node": "CONSULTA PRODUCTIVIDAD (DIA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CONSULTA PRODUCTIVIDAD (DIA)": {
+      "main": [
+        [
+          {
+            "node": "XLSX PRODUCTIVIDAD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "XLSX PRODUCTIVIDAD": {
+      "main": [
+        [
+          {
+            "node": "SUBIR PRODUCTIVIDAD SFTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SUBIR PRODUCTIVIDAD SFTP": {
+      "main": [
+        [
+          {
+            "node": "CONSULTA GESTION (DIA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CONSULTA GESTION (DIA)": {
+      "main": [
+        [
+          {
+            "node": "XLSX GESTION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "XLSX GESTION": {
+      "main": [
+        [
+          {
+            "node": "SUBIR GESTION SFTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SUBIR GESTION SFTP": {
+      "main": [
+        [
+          {
+            "node": "RESUMEN EJECUCION",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RESUMEN EJECUCION": {
+      "main": [
+        [
+          {
+            "node": "EJECUTAR DESCARGA?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EJECUTAR DESCARGA?": {
+      "main": [
+        [
+          {
+            "node": "CREAR BINARIO .KEEP",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FIN (NoOp)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CREAR BINARIO .KEEP": {
+      "main": [
+        [
+          {
+            "node": "CREAR CARPETA SFTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CREAR CARPETA SFTP": {
+      "main": [
+        [
+          {
+            "node": "LISTAR SFTP LLAMADAS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LISTAR SFTP LLAMADAS": {
+      "main": [
+        [
+          {
+            "node": "EXTRAER IDS DESCARGADOS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXTRAER IDS DESCARGADOS": {
+      "main": [
+        [
+          {
+            "node": "LISTAR IDS LLAMADAS VAPI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LISTAR IDS LLAMADAS VAPI": {
+      "main": [
+        [
+          {
+            "node": "SPLIT DESCARGAS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SPLIT DESCARGAS": {
+      "main": [
+        [],
+        [
+          {
+            "node": "OBTENER DETALLE LLAMADA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OBTENER DETALLE LLAMADA": {
+      "main": [
+        [
+          {
+            "node": "EXTRAER URL AUDIO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EXTRAER URL AUDIO": {
+      "main": [
+        [
+          {
+            "node": "TIENE AUDIO?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TIENE AUDIO?": {
+      "main": [
+        [
+          {
+            "node": "DESCARGAR AUDIO MP3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "SPLIT DESCARGAS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DESCARGAR AUDIO MP3": {
+      "main": [
+        [
+          {
+            "node": "SUBIR AUDIO SFTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SUBIR AUDIO SFTP": {
+      "main": [
+        [
+          {
+            "node": "ESPERAR 10s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ESPERAR 10s": {
+      "main": [
+        [
+          {
+            "node": "SPLIT DESCARGAS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "f27f039a-a60c-4076-a96f-96ed8c84303b",
+  "meta": {
+    "instanceId": "915a7f7568d882a64f47657d6f3fab09c88f51183cb22a1bfa48ee39cc137bcd"
+  },
+  "id": "WuX1b6Wt0L7heQcH",
+  "tags": []
 }

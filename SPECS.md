@@ -106,7 +106,23 @@ These transitions are enforced in `upload_database/app.js` (`mergeWithExisting` 
 - **PREVENTIVA**: Assigned when `fecha_vencimiento` is today or in the future.
 - **COBROS**: Assigned when `fecha_vencimiento` has passed (`dias_retraso < 0`).
 
-### 3.3 Product Grouping
+### 3.3 Priority Modes (Outbound Calling)
+
+Configured in `CONFIG INICIAL` → `prioridad.modo`:
+
+| Mode | Behavior |
+|---|---|
+| `NORMAL` | Default ordering: FINALIZADO → `intentos_llamada ASC` → `fecha_reagenda ASC` |
+| `MODO1` | Prioritizes `dias_retraso IN (configurable range)`, then falls back to NORMAL |
+| `MODO2` | Prioritizes `num_operacion IN (configurable array)`, then falls back to NORMAL |
+| `AUTO` | Chains MODO1 → MODO2 → NORMAL in a single query via `CASE WHEN` priority levels |
+
+**WHERE behavior by mode**:
+- `NORMAL`: FINALIZADO records only picked if `dias_retraso <= 0`.
+- `MODO1`/`AUTO`: FINALIZADO records also picked if `dias_retraso` is in the priority range.
+- `EN_PROCESO` records are automatically recovered if `fecha_reagenda` is past (prevents stuck records).
+
+### 3.4 Product Grouping
 
 - `producto === 'UNICREDITO'` → displayed as "UNICREDITO".
 - All other products → displayed as "CASAS COMERCIALES".
@@ -238,7 +254,7 @@ Scheduled workflow (Mon–Sat at 9 PM, timezone `America/Guayaquil`) that:
 ### 6.2 Node Flow
 
 ```
-Cron 21h → CONFIG INICIAL → UPSERT PRODUCTIVIDAD → CONSULTA PROD → XLSX → SFTP
+Cron 21h → CONFIG INICIAL → UPSERT PRODUCTIVIDAD → COLAPSAR → CONSULTA PROD → XLSX → SFTP
                                             ↘
                               CONSULTA GESTION → XLSX GEST → SFTP GEST
                                             ↙
@@ -246,7 +262,15 @@ Cron 21h → CONFIG INICIAL → UPSERT PRODUCTIVIDAD → CONSULTA PROD → XLSX 
                                             ↓
                                     IF: EJECUTAR DESCARGA?
                                    ↙ true           ↘ false
-                          LISTAR IDS VAPI           FIN (NoOp)
+                          CREAR BINARIO .KEEP      FIN (NoOp)
+                                  ↓
+                          CREAR CARPETA SFTP
+                                  ↓
+                          LISTAR SFTP LLAMADAS
+                                  ↓
+                          EXTRAER IDS DESCARGADOS
+                                  ↓
+                          LISTAR IDS VAPI
                                   ↓
                           SPLIT DESCARGAS
                                   ↓
@@ -333,6 +357,16 @@ Example from 2026-05-05, CASAS COMERCIALES / preventiva:
 
 Each field is a progressively filtered subset — `gestiones ⊆ marcaciones`, `contactos_directos ⊆ gestiones`, `compromisos ⊆ contactos_directos`.
 
+### 6.6 Audio Download Resume
+
+Before downloading, the workflow creates a `.keep` file in the SFTP `llamadas/` folder to force folder creation. Then it lists already-downloaded call IDs from existing `.wav`/`.mp3` files, extracts the `id_llamada` from filenames (`{createdAt}_{call_id}.{ext}`), and filters them out from the VAPI list before entering the download loop. This enables the workflow to resume from where it left off after interruption.
+
+### 6.7 Excel Export Columns
+
+**Productivity report**: `fecha, cedente, tipo_cartera, producto, estrategia_o_equipo, canal_gestion, gestores_asignados, horas_laborables, dias_laborados, observaciones, marcaciones_realizadas, gestiones_realizadas, contactos_directos, compromisos_de_pago_generados, compromisos_de_pago_cumplidos, numero_clientes_marcados, clientes_gestionados, numero_clientes_recuperados, tiempo_entre_llamadas`. Dates in `YYYY-MM-DD`.
+
+**Gestion report**: `Cedente, Canal, NumeroOperacion, UserNameGestion, NumeroTelefono, Observacion, Respuesta, Fecha Compromiso, Fecha, Hora, ID Llamada`. Dates in `YYYY-MM-DD`.
+
 ---
 
 ## 7. Known Constraints
@@ -378,3 +412,6 @@ Each field is a progressively filtered subset — `gestiones ⊆ marcaciones`, `
 | Productivity report uses `fecha_gestion` for daily filter | `fecha_gestion` is set by the call-closing workflow and reflects the actual management date, not the `created_at` server timestamp. |
 | `numero_clientes_recuperados` uses `COUNT(DISTINCT cedula)` | Prevents double-counting the same client who made multiple promises on the same day. |
 | Conditional audio download via IF node | Audio download is expensive (many HTTP requests). Config flag lets user skip it for quick report reprocessing. |
+| Audio resume via SFTP `.keep` | Pre-creating a `.keep` file ensures the SFTP folder exists for the list operation. Already-downloaded IDs are skipped on re-run. |
+| Priority modes with SQL `CASE WHEN` | No external state needed. The ORDER BY naturally cascades through priority levels as higher-priority records are exhausted. |
+| EN_PROCESO recovery in outbound calling | Adding `EN_PROCESO` to the SELECT WHERE prevents records stuck mid-call from being ignored. The upload tool also recovers them, but this adds a real-time safety net. |
