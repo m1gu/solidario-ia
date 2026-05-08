@@ -221,7 +221,7 @@
 
     .charts-grid {
       display: grid;
-      grid-template-columns: 2fr 1fr;
+      grid-template-columns: 1fr 1fr;
       gap: 1.5rem;
     }
     .chart-wrapper {
@@ -662,6 +662,21 @@
         <div class="glass-card chart-wrapper">
           <canvas id="pieChart"></canvas>
         </div>
+        <div class="glass-card chart-wrapper">
+          <canvas id="estadoFlujoChart"></canvas>
+        </div>
+        <div class="glass-card chart-wrapper">
+          <canvas id="contactoGlobalChart"></canvas>
+        </div>
+        <div class="glass-card chart-wrapper">
+          <canvas id="intentosChart"></canvas>
+        </div>
+        <div class="glass-card chart-wrapper">
+          <canvas id="contactoCobrosChart"></canvas>
+        </div>
+        <div class="glass-card chart-wrapper">
+          <canvas id="contactoPreventivaChart"></canvas>
+        </div>
       </div>
     </section>
 
@@ -773,6 +788,7 @@
     // STATE & UTILS
     // ==========================================
     let allCalls = [];
+    let allRegistros = [];
     let filteredCalls = [];
     let dashboardFilteredCalls = [];
     const PAGE_SIZE = 10;
@@ -780,6 +796,12 @@
 
     let barChartInstance = null;
     let pieChartInstance = null;
+    let estadoFlujoChart = null;
+    let contactoGlobalChart = null;
+    let intentosChart = null;
+    let contactoProdEstratChart = null;
+    let contactoCobrosChart = null;
+    let contactoPreventivaChart = null;
 
     // Config global Chart.js Dark Mode
     Chart.defaults.color = '#94A3B8';
@@ -893,18 +915,30 @@
           page++;
         }
 
-        const [registrosRes, gestionRes] = await Promise.all([
-          supabaseClient.from('solidario_registros').select('num_operacion, producto'),
-          supabaseClient.from('solidario_reporte_gestion').select('num_operacion, user_name_gestion')
-        ]);
+        let allGestion = [];
+        let gp = 0;
+        while (true) {
+          const { data: gData, error: gErr } = await supabaseClient.from('solidario_reporte_gestion')
+            .select('num_operacion, user_name_gestion')
+            .range(gp * PAGE, (gp + 1) * PAGE - 1);
+          if (gErr) throw gErr;
+          if (gData && gData.length > 0) allGestion = allGestion.concat(gData);
+          if (!gData || gData.length < PAGE) break;
+          gp++;
+        }
+
+        const { data: registrosData, error: regErr } = await supabaseClient.from('solidario_registros')
+          .select('num_operacion, producto, estado_flujo, intentos_llamada');
+        if (regErr) throw regErr;
+        allRegistros = registrosData || [];
 
         const productoMap = {};
-        (registrosRes.data || []).forEach(r => {
+        allRegistros.forEach(r => {
           if (r.num_operacion) productoMap[r.num_operacion] = r.producto;
         });
 
         const gestionMap = {};
-        (gestionRes.data || []).forEach(g => {
+        allGestion.forEach(g => {
           if (g.num_operacion) gestionMap[g.num_operacion] = g.user_name_gestion;
         });
 
@@ -916,6 +950,7 @@
 
         applyDashboardFilters();
         applyCallsFilters();
+        updateBaseMetrics();
       } catch (err) {
         console.error('Error fetching data:', err);
         document.querySelector('#calls-table tbody').innerHTML = `<tr><td colspan="8" style="color:var(--danger); text-align:center;">Error cargando datos. Revisa la consola.</td></tr>`;
@@ -932,7 +967,7 @@
 
       dashboardFilteredCalls = allCalls.filter(call => {
         if (productoVal === 'UNICREDITO' && call.producto !== 'UNICREDITO') return false;
-        if (productoVal === 'CASAS_COMERCIALES' && (!call.producto || call.producto === 'UNICREDITO')) return false;
+        if (productoVal === 'CASAS_COMERCIALES' && call.producto === 'UNICREDITO') return false;
         if (estrategiaVal !== 'AMBAS' && call.user_name_gestion !== estrategiaVal) return false;
         return true;
       });
@@ -953,10 +988,8 @@
         }
 
         if (productoVal === 'UNICREDITO' && call.producto !== 'UNICREDITO') return false;
-        if (productoVal === 'CASAS_COMERCIALES' && (!call.producto || call.producto === 'UNICREDITO')) return false;
-
+        if (productoVal === 'CASAS_COMERCIALES' && call.producto === 'UNICREDITO') return false;
         if (estrategiaVal !== 'AMBAS' && call.user_name_gestion !== estrategiaVal) return false;
-
         return true;
       });
 
@@ -975,6 +1008,7 @@
 
       const nomenclatureCounts = {};
       const datesCounts = {};
+      const finalizadosPorDia = {};
 
       dashboardFilteredCalls.forEach(c => {
         if (c.monto_promesa) totalMonto += Number(c.monto_promesa);
@@ -995,6 +1029,7 @@
         if (c.created_at) {
           const d = c.created_at.split('T')[0];
           datesCounts[d] = (datesCounts[d] || 0) + 1;
+          if (String(c.aceptacion).toLowerCase() === 'si') finalizadosPorDia[d] = (finalizadosPorDia[d] || 0) + 1;
         }
       });
 
@@ -1004,13 +1039,13 @@
       document.getElementById('kpi-duracion').textContent = duracionCount > 0 ? Math.round(duracionSum / duracionCount) + 's' : '0s';
       document.getElementById('kpi-contacto').textContent = total > 0 ? Math.round((contactoCount / total) * 100) + '%' : '0%';
 
-      renderCharts(datesCounts, nomenclatureCounts);
+      renderCharts(datesCounts, nomenclatureCounts, finalizadosPorDia);
     }
 
-    function renderCharts(datesObj, nomsObj) {
-      // Sort dates
+    function renderCharts(datesObj, nomsObj, finalObj) {
       const sortedDates = Object.keys(datesObj).sort();
       const dateValues = sortedDates.map(d => datesObj[d]);
+      const finalValues = sortedDates.map(d => finalObj[d] || 0);
 
       if (barChartInstance) barChartInstance.destroy();
       barChartInstance = new Chart(document.getElementById('barChart'), {
@@ -1018,16 +1053,27 @@
         data: {
           labels: sortedDates,
           datasets: [{
-            label: 'Volumen de Llamadas',
+            label: 'Llamadas',
             data: dateValues,
             backgroundColor: '#14B8A6',
             borderRadius: 6,
-            hoverBackgroundColor: '#2DD4BF'
+            order: 2
+          }, {
+            label: 'Compromisos',
+            data: finalValues,
+            type: 'line',
+            borderColor: '#FCD34D',
+            borderWidth: 2,
+            pointRadius: 4,
+            pointBackgroundColor: '#FCD34D',
+            fill: false,
+            tension: 0.3,
+            order: 1
           }]
         },
         options: {
           responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: false }, title: { display: true, text: 'Llamadas por Día', color: '#fff', font: { size: 16 } } }
+          plugins: { legend: { display: true, labels: { color: '#94A3B8' } }, title: { display: true, text: 'Llamadas y Compromisos por Día', color: '#fff', font: { size: 16 } } }
         }
       });
 
@@ -1050,6 +1096,158 @@
           responsive: true, maintainAspectRatio: false,
           plugins: { legend: { position: 'right' }, title: { display: true, text: 'Distribución por Nomenclatura', color: '#fff', font: { size: 16 } } },
           cutout: '70%'
+        }
+      });
+
+    }
+
+    function updateBaseMetrics() {
+      const totalReg = allRegistros.length;
+      if (totalReg === 0) return;
+
+      const estadoCounts = { FINALIZADO: 0, PENDIENTE: 0 };
+      allRegistros.forEach(r => {
+        const e = r.estado_flujo;
+        if (e === 'FINALIZADO') estadoCounts.FINALIZADO++;
+        else estadoCounts.PENDIENTE++;
+      });
+
+      if (estadoFlujoChart) estadoFlujoChart.destroy();
+      estadoFlujoChart = new Chart(document.getElementById('estadoFlujoChart'), {
+        type: 'doughnut',
+        data: {
+          labels: ['FINALIZADO', 'PENDIENTE/REINTENTAR/EN_PROCESO'],
+          datasets: [{ data: [estadoCounts.FINALIZADO, estadoCounts.PENDIENTE], backgroundColor: ['#34D399', '#FCD34D'], borderWidth: 0 }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { color: '#94A3B8', padding: 12 } },
+            title: { display: true, text: 'Barrido de Base: ' + Math.round(100 * estadoCounts.FINALIZADO / totalReg) + '% Finalizado', color: '#fff', font: { size: 13 } }
+          },
+          cutout: '65%'
+        }
+      });
+
+      const contactoPorDia = {};
+      dashboardFilteredCalls.forEach(c => {
+        if (!c.created_at) return;
+        const d = c.created_at.split('T')[0];
+        if (!contactoPorDia[d]) contactoPorDia[d] = { alo: 0, efectivo: 0 };
+        if (c.contactoalo && String(c.contactoalo).trim() !== '') contactoPorDia[d].alo++;
+        if (String(c.contactoefectivo).toLowerCase() === 'si') contactoPorDia[d].efectivo++;
+      });
+      const sortedContacto = Object.keys(contactoPorDia).sort();
+      const aloValues = sortedContacto.map(d => contactoPorDia[d].alo);
+      const efValues = sortedContacto.map(d => contactoPorDia[d].efectivo);
+
+      if (contactoGlobalChart) contactoGlobalChart.destroy();
+      contactoGlobalChart = new Chart(document.getElementById('contactoGlobalChart'), {
+        type: 'bar',
+        data: {
+          labels: sortedContacto,
+          datasets: [
+            { label: 'Contacto Aló', data: aloValues, backgroundColor: '#2DD4BF', borderRadius: 4 },
+            { label: 'Contacto Efectivo', data: efValues, backgroundColor: '#34D399', borderRadius: 4 }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#94A3B8' } },
+            title: { display: true, text: 'Contacto Aló y Efectivo por Día', color: '#fff', font: { size: 13 } }
+          },
+          scales: { x: { ticks: { color: '#94A3B8' } }, y: { ticks: { color: '#94A3B8' } } }
+        }
+      });
+
+      const intentosMap = {};
+      allRegistros.forEach(r => { const i = r.intentos_llamada || 0; intentosMap[i] = (intentosMap[i] || 0) + 1; });
+      const sortedInts = Object.keys(intentosMap).map(Number).sort((a, b) => a - b);
+      const intLabels = sortedInts.map(i => i + ' intentos');
+      const intValues = sortedInts.map(i => intentosMap[i]);
+
+      if (intentosChart) intentosChart.destroy();
+      intentosChart = new Chart(document.getElementById('intentosChart'), {
+        type: 'bar',
+        data: {
+          labels: intLabels,
+          datasets: [{ data: intValues, backgroundColor: '#14B8A6', borderRadius: 4 }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, title: { display: true, text: 'Distribución de Intentos por Registro', color: '#fff', font: { size: 13 } } }
+        }
+      });
+
+      const prodMap = {};
+      allRegistros.forEach(r => { prodMap[r.num_operacion] = r.producto; });
+
+      function buildContactoPorDia(stratFilter) {
+        const byDay = {};
+        allCalls.forEach(c => {
+          if (!c.created_at || c.user_name_gestion !== stratFilter) return;
+          const d = c.created_at.split('T')[0];
+          if (!byDay[d]) byDay[d] = {};
+          const prod = String(prodMap[c.num_operacion] || '').toUpperCase() === 'UNICREDITO' ? 'UNI' : 'CC';
+          if (!byDay[d][prod]) byDay[d][prod] = { alo: 0, efectivo: 0 };
+          if (c.contactoalo && String(c.contactoalo).trim() !== '') byDay[d][prod].alo++;
+          if (String(c.contactoefectivo).toLowerCase() === 'si') byDay[d][prod].efectivo++;
+        });
+        const sorted = Object.keys(byDay).sort();
+        return {
+          labels: sorted,
+          uniAlo: sorted.map(d => (byDay[d].UNI || {}).alo || 0),
+          uniEf: sorted.map(d => (byDay[d].UNI || {}).efectivo || 0),
+          ccAlo: sorted.map(d => (byDay[d].CC || {}).alo || 0),
+          ccEf: sorted.map(d => (byDay[d].CC || {}).efectivo || 0)
+        };
+      }
+
+      const cobros = buildContactoPorDia('COBROS');
+      const preventiva = buildContactoPorDia('PREVENTIVA');
+
+      if (contactoCobrosChart) contactoCobrosChart.destroy();
+      contactoCobrosChart = new Chart(document.getElementById('contactoCobrosChart'), {
+        type: 'bar',
+        data: {
+          labels: cobros.labels,
+          datasets: [
+            { label: 'UNI Aló', data: cobros.uniAlo, backgroundColor: '#0EA5E9', borderRadius: 3 },
+            { label: 'UNI Efectivo', data: cobros.uniEf, backgroundColor: '#0284C7', borderRadius: 3 },
+            { label: 'CC Aló', data: cobros.ccAlo, backgroundColor: '#F59E0B', borderRadius: 3 },
+            { label: 'CC Efectivo', data: cobros.ccEf, backgroundColor: '#B45309', borderRadius: 3 }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#94A3B8', font: { size: 10 } } },
+            title: { display: true, text: 'Contacto COBROS por Día', color: '#fff', font: { size: 13 } }
+          },
+          scales: { x: { ticks: { color: '#94A3B8' } }, y: { ticks: { color: '#94A3B8' } } }
+        }
+      });
+
+      if (contactoPreventivaChart) contactoPreventivaChart.destroy();
+      contactoPreventivaChart = new Chart(document.getElementById('contactoPreventivaChart'), {
+        type: 'bar',
+        data: {
+          labels: preventiva.labels,
+          datasets: [
+            { label: 'UNI Aló', data: preventiva.uniAlo, backgroundColor: '#0EA5E9', borderRadius: 3 },
+            { label: 'UNI Efectivo', data: preventiva.uniEf, backgroundColor: '#0284C7', borderRadius: 3 },
+            { label: 'CC Aló', data: preventiva.ccAlo, backgroundColor: '#F59E0B', borderRadius: 3 },
+            { label: 'CC Efectivo', data: preventiva.ccEf, backgroundColor: '#B45309', borderRadius: 3 }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#94A3B8', font: { size: 10 } } },
+            title: { display: true, text: 'Contacto PREVENTIVA por Día', color: '#fff', font: { size: 13 } }
+          },
+          scales: { x: { ticks: { color: '#94A3B8' } }, y: { ticks: { color: '#94A3B8' } } }
         }
       });
     }

@@ -115,11 +115,13 @@ Configured in `CONFIG INICIAL` → `prioridad.modo`:
 | `NORMAL` | Default ordering: FINALIZADO → `intentos_llamada ASC` → `fecha_reagenda ASC` |
 | `MODO1` | Prioritizes `dias_retraso IN (configurable range)`, then falls back to NORMAL |
 | `MODO2` | Prioritizes `num_operacion IN (configurable array)`, then falls back to NORMAL |
-| `AUTO` | Chains MODO1 → MODO2 → NORMAL in a single query via `CASE WHEN` priority levels |
+| `MODO3` | Prioritizes `fecha_vencimiento BETWEEN (range)`, used for recurring calls to fixed overdue accounts |
+| `AUTO` | Chains MODO1 → MODO2 → MODO3 → NORMAL in a single query via `CASE WHEN` priority levels |
 
 **WHERE behavior by mode**:
 - `NORMAL`: FINALIZADO records only picked if `dias_retraso <= 0`.
 - `MODO1`/`AUTO`: FINALIZADO records also picked if `dias_retraso` is in the priority range.
+- `MODO3`: FINALIZADO records also picked if `fecha_vencimiento` is in the range.
 - `EN_PROCESO` records are automatically recovered if `fecha_reagenda` is past (prevents stuck records).
 
 ### 3.4 Product Grouping
@@ -127,7 +129,8 @@ Configured in `CONFIG INICIAL` → `prioridad.modo`:
 - `producto === 'UNICREDITO'` → displayed as "UNICREDITO".
 - All other products → displayed as "CASAS COMERCIALES".
 - In uploads, `producto === 'EMPAQUETADO'` is remapped to `'UNICREDITO'`.
-- Filter "AMBOS" → no filter; "UNICREDITO" → exact match; "CASAS COMERCIALES" → NOT UNICREDITO.
+- Filter "AMBOS" → no filter; "UNICREDITO" → exact match; "CASAS COMERCIALES" → NOT UNICREDITO (includes nulls).
+- **Filter consistency**: `AMBOS = UNICREDITO + CASAS_COMERCIALES` by design. Nulls (registros without a matching `solidario_registros` entry) are treated as CASAS COMERCIALES.
 
 ---
 
@@ -151,7 +154,7 @@ Configured in `CONFIG INICIAL` → `prioridad.modo`:
 | Estrategia | `dash-estrategia` | `table-estrategia` | JS-side | `solidario_reporte_gestion.user_name_gestion` |
 | Búsqueda texto | (only Auditoría) `search-input` | JS-side | `cedula`, `nombre`, `apellido`, `num_operacion`, `id_llamada` |
 
-**Why JS-side for Producto/Estrategia**: These columns live in different tables (`solidario_registros`, `solidario_reporte_gestion`). The dashboard fetches those tables fully (small tables) and merges in JS rather than doing Supabase JOINs.
+**Why JS-side for Producto/Estrategia**: These columns live in different tables (`solidario_registros`, `solidario_reporte_gestion`). The dashboard fetches those tables with pagination and merges in JS rather than doing Supabase JOINs.
 
 ### 4.3 Tab 1 — Métricas
 
@@ -165,12 +168,17 @@ Configured in `CONFIG INICIAL` → `prioridad.modo`:
 | Duración Promedio | Average of `getDurationSeconds()` | `duracion_llamada` (etc.) |
 | % Contacto Efectivo | `(contactoefectivo === 'Si') / total * 100` | `contactoefectivo` |
 
-**2 Charts:**
+**7 Charts** (2-col grid):
 
 | Chart | Type | Data | Config |
 |---|---|---|---|
-| Llamadas por Día | Bar | `created_at` grouped by date | Primary color bars, no legend |
+| Llamadas y Compromisos por Día | Bar + Line | `created_at` grouped by date, commitments as line | Primary teal bars, amber line |
 | Distribución por Nomenclatura | Doughnut | `nomenclatura` counts | 6-color palette, right legend |
+| Barrido de Base | Doughnut | `estado_flujo` from `allRegistros` | Green = FINALIZADO, Amber = rest |
+| Contacto Aló y Efectivo por Día | Grouped Bar | `contactoalo` / `contactoefectivo` counts per day | Teal/Green bars |
+| Distribución de Intentos | Bar | `intentos_llamada` from `allRegistros` | Teal bars, grouped by count |
+| Contacto COBROS por Día | Grouped Bar | Calls with `user_name_gestion = 'COBROS'`, 4 series per day: UNI Aló, UNI Ef, CC Aló, CC Ef | Blue/Orange palette |
+| Contacto PREVENTIVA por Día | Grouped Bar | Same for `user_name_gestion = 'PREVENTIVA'` | Blue/Orange palette |
 
 ### 4.4 Tab 2 — Auditoría de Llamadas
 
@@ -196,8 +204,10 @@ Page Load / Button Click
   → fetchData(fromISO, toISO)
       → while hasMore:
           → supabase .gte().lte().range()   (paginates 1000 rows per request)
-      → supabase solidario_registros        (full table, join in JS)
-      → supabase solidario_reporte_gestion  (full table, join in JS)
+      → while hasMore:
+          → supabase solidario_reporte_gestion .range() (paginated, may exceed 1000 rows)
+      → supabase solidario_registros        (full table, single fetch)
+      → merge producto + user_name_gestion  (JS)
       → merge producto + user_name_gestion  (JS)
   → applyDashboardFilters()                 (JS: producto, estrategia)
   → applyCallsFilters()                     (JS: search, producto, estrategia)
@@ -415,3 +425,5 @@ Before downloading, the workflow creates a `.keep` file in the SFTP `llamadas/` 
 | Audio resume via SFTP `.keep` | Pre-creating a `.keep` file ensures the SFTP folder exists for the list operation. Already-downloaded IDs are skipped on re-run. |
 | Priority modes with SQL `CASE WHEN` | No external state needed. The ORDER BY naturally cascades through priority levels as higher-priority records are exhausted. |
 | EN_PROCESO recovery in outbound calling | Adding `EN_PROCESO` to the SELECT WHERE prevents records stuck mid-call from being ignored. The upload tool also recovers them, but this adds a real-time safety net. |
+| MODO3 for recurring overdue calls | Fixed overdue accounts need continuous calling regardless of status. SQL-based fecha_vencimiento range allows re-calling FINALIZADO records without manual intervention. Policy limits still apply. |
+| Paginate `solidario_reporte_gestion` | This table exceeds 1000 rows; without pagination, `user_name_gestion` is null for many calls, breaking the COBROS/PREVENTIVA filter math.

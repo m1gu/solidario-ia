@@ -89,7 +89,14 @@ Aggregated data for performance analysis, updated via scheduled task (Mon-Sat at
 
 #### Tab 1 — Métricas (Dashboard)
 - **5 KPIs**: Total Llamadas, % Aceptación Efectiva (`aceptacion === 'Si'`), Monto Promesa (sum of `monto_promesa`), Duración Promedio, % Contacto Efectivo (`contactoefectivo === 'Si'`).
-- **2 Charts**: Bar chart (calls per day), Doughnut (distribution by `nomenclatura`).
+- **7 Charts** (2-col grid):
+  - Llamadas y Compromisos por Día (bar + line)
+  - Distribución por Nomenclatura (doughnut)
+  - Barrido de Base: % FINALIZADO (doughnut)
+  - Contacto Aló y Efectivo por Día (grouped bar)
+  - Distribución de Intentos por Registro (bar)
+  - Contacto COBROS por Día (grouped bar: UNI Aló, UNI Ef, CC Aló, CC Ef)
+  - Contacto PREVENTIVA por Día (grouped bar)
 - **Filters**: Date range, Producto (`dash-producto`), Estrategia (`dash-estrategia`).
 
 #### Tab 2 — Auditoría de Llamadas
@@ -103,7 +110,8 @@ Aggregated data for performance analysis, updated via scheduled task (Mon-Sat at
 - Date range is clamped to maximum **4 days** via `clampTo4Days()` helper.
 - Supabase has `max-rows = 1000` limit → client-side pagination with `.range()` loops until page returns < 1000 rows.
 - Producto and Estrategia filters are applied **in JS** because they require JOINs across tables.
-- Tables `solidario_registros` and `solidario_reporte_gestion` are fetched completely (they're small).
+- Tables `solidario_registros` and `solidario_reporte_gestion` are fetched with pagination (they may exceed 1000 rows).
+- **Producto filter**: "CASAS COMERCIALES" means everything that is NOT `'UNICREDITO'` (including nulls).
 
 ### Key Constraints
 - Never add dependencies — use vanilla JS only.
@@ -134,7 +142,8 @@ Web-based CSV/XLSX/TXT uploader for `solidario_registros`. Validates, merges wit
     - `NORMAL`: Default ordering (FINALIZADO → intentos ASC → reagenda ASC).
     - `MODO1`: Prioritizes `dias_retraso IN (configurable range)`, fallback to normal.
     - `MODO2`: Prioritizes `num_operacion IN (configurable array)`, fallback to normal.
-    - `AUTO`: Chains MODO1 → MODO2 → NORMAL automatically (SQL-based, no external state).
+    - `MODO3`: Prioritizes `fecha_vencimiento BETWEEN (range)`, fallback to normal. Used for recurring calls to fixed overdue accounts.
+    - `AUTO`: Chains MODO1 → MODO2 → MODO3 → NORMAL automatically (SQL-based, no external state).
 - **Agent Assignment**:
     - `PREVENTIVA`: Assigned if the due date is today or in the future.
     - `COBROS`: Assigned if the due date has passed (negative `dias_retraso`).
