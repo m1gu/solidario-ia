@@ -1,4 +1,4 @@
-# SPECS.md — Banco Solidario AI Voice Agent
+# SPECS.md — Solidario AI Voice Agent
 
 ## 1. System Overview
 

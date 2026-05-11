@@ -1,4 +1,4 @@
-# Project: Banco Solidario AI Voice Agent
+# Project: Solidario AI Voice Agent
 
 ## Overview
 An automated AI-driven voice agent system designed for debt collection and preventive management. The system uses **n8n** for orchestration, **VAPI** for AI voice interactions, and **Supabase** for data persistence and state management.

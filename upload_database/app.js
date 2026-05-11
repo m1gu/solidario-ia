@@ -1,5 +1,5 @@
 /* ============================================================
-   Banco Solidario Cobros - Upload Database
+   Solidario Cobros - Upload Database
    ============================================================ */
 
 // ---- Column mapping: input header -> SQL column name ----
